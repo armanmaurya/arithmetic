@@ -20,6 +20,9 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Enable Rust caching
+        uses: Swatinem/rust-cache@v2
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
