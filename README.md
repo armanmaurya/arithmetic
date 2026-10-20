@@ -13,11 +13,12 @@
 
 ## Installation
 
-### Arch Linux / AUR
-Install via your favorite AUR helper:
+### Arch Linux
+Download the `.pkg.tar.zst` package from [Releases](../../releases) and install:
 ```bash
-yay -S arithmetic
+sudo pacman -U ./arithmetic-*.pkg.tar.zst
 ```
+*(Or via AUR once published: `yay -S arithmetic`)*
 
 ### Universal AppImage
 Download the prebuilt AppImage from [Releases](../../releases), make it executable, and run:
