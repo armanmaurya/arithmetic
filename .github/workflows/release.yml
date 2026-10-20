@@ -63,8 +63,10 @@ jobs:
             cp target/appimage/*.AppImage target/dist/
           fi
 
-      - name: Build Arch AUR & Release Tarball (cargo aur)
-        run: cargo aur -o target/dist/
+      - name: Build Standalone Release Tarball (cargo aur)
+        run: |
+          cargo aur -o target/dist/
+          rm -f target/dist/PKGBUILD
 
       - name: Generate Checksums
         run: |
