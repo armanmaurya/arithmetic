@@ -1,0 +1,17 @@
+import { M3Theme } from "../theme.slint";
+
+export component M3Icon inherits Rectangle {
+    in property <string> commands;
+    in property <color> icon-color: M3Theme.on-surface;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+
+    Path {
+        width: 100%;
+        height: 100%;
+        commands: root.commands;
+        fill: root.icon-color;
+        animate fill { duration: 180ms; }
+    }
+}

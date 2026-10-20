@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Release Packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libfontconfig1-dev libfreetype6-dev file zstd
+
+      - name: Install appimagetool (Extracted, no FUSE needed)
+        run: |
+          curl -sLo /tmp/appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x /tmp/appimagetool
+          cd /tmp && /tmp/appimagetool --appimage-extract
+          sudo mv /tmp/squashfs-root /usr/local/appimagetool
+          sudo ln -s /usr/local/appimagetool/AppRun /usr/local/bin/appimagetool
+
+      - name: Install official Cargo packaging tools (Prebuilt Fast Download)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb,cargo-generate-rpm,cargo-aur
+
+      - name: Install cargo-appimage
+        run: cargo install cargo-appimage
+
+      - name: Build stripped release binary
+        run: cargo build --release
+
+      - name: Prepare dist directory
+        run: mkdir -p target/dist
+
+      - name: Build Debian Package (cargo deb)
+        run: cargo deb -o target/dist/
+
+      - name: Build Red Hat Package (cargo generate-rpm)
+        run: cargo generate-rpm -o target/dist/
+
+      - name: Build Universal AppImage (cargo appimage)
+        run: |
+          cargo appimage
+          if ls target/appimage/*.AppImage 1>/dev/null 2>&1; then
+            cp target/appimage/*.AppImage target/dist/
+          fi
+
+      - name: Build Arch AUR & Release Tarball (cargo aur)
+        run: cargo aur -o target/dist/
+
+      - name: Generate Checksums
+        run: |
+          cd target/dist
+          rm -f SHA256SUMS.txt
+          sha256sum * > SHA256SUMS.txt
+
+      - name: Create GitHub Release (Draft)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/dist/*
+          draft: true
+          prerelease: false
+          generate_release_notes: true

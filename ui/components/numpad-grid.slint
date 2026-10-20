@@ -1,0 +1,72 @@
+import { CalcButton } from "calc-button.slint";
+
+export component NumpadGrid inherits Rectangle {
+    in property <bool> is-landscape: false;
+    callback press-key(string);
+
+    background: transparent;
+
+    VerticalLayout {
+        spacing: 9px;
+
+        // Row 1: AC, ( ), %, ÷
+        HorizontalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+            CalcButton {
+                label: "AC";
+                role: 2;
+                font-px: root.is-landscape ? 21px : 24px;
+                clicked => { root.press-key("AC"); }
+            }
+            CalcButton { label: "( )"; role: 1; font-px: root.is-landscape ? 20px : 23px; clicked => { root.press-key("()"); } }
+            CalcButton { label: "%"; role: 1; font-px: root.is-landscape ? 22px : 25px; clicked => { root.press-key("%"); } }
+            CalcButton { label: "÷"; role: 1; font-px: root.is-landscape ? 26px : 32px; clicked => { root.press-key("÷"); } }
+        }
+
+        // Row 2: 7, 8, 9, ×
+        HorizontalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+            CalcButton { label: "7"; role: 0; font-px: root.is-landscape ? 23px : 28px; clicked => { root.press-key("7"); } }
+            CalcButton { label: "8"; role: 0; font-px: root.is-landscape ? 23px : 28px; clicked => { root.press-key("8"); } }
+            CalcButton { label: "9"; role: 0; font-px: root.is-landscape ? 23px : 28px; clicked => { root.press-key("9"); } }
+            CalcButton { label: "×"; role: 1; font-px: root.is-landscape ? 26px : 32px; clicked => { root.press-key("×"); } }
+        }
+
+        // Row 3: 4, 5, 6, −
+        HorizontalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+            CalcButton { label: "4"; role: 0; font-px: root.is-landscape ? 23px : 28px; clicked => { root.press-key("4"); } }
+            CalcButton { label: "5"; role: 0; font-px: root.is-landscape ? 23px : 28px; clicked => { root.press-key("5"); } }
+            CalcButton { label: "6"; role: 0; font-px: root.is-landscape ? 23px : 28px; clicked => { root.press-key("6"); } }
+            CalcButton { label: "−"; role: 1; font-px: root.is-landscape ? 26px : 32px; clicked => { root.press-key("−"); } }
+        }
+
+        // Row 4: 1, 2, 3, +
+        HorizontalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+            CalcButton { label: "1"; role: 0; font-px: root.is-landscape ? 23px : 28px; clicked => { root.press-key("1"); } }
+            CalcButton { label: "2"; role: 0; font-px: root.is-landscape ? 23px : 28px; clicked => { root.press-key("2"); } }
+            CalcButton { label: "3"; role: 0; font-px: root.is-landscape ? 23px : 28px; clicked => { root.press-key("3"); } }
+            CalcButton { label: "+"; role: 1; font-px: root.is-landscape ? 26px : 32px; clicked => { root.press-key("+"); } }
+        }
+
+        // Row 5: 0, •, Backspace, =
+        HorizontalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+            CalcButton { label: "0"; role: 0; font-px: root.is-landscape ? 23px : 28px; clicked => { root.press-key("0"); } }
+            CalcButton { label: "•"; role: 0; font-px: root.is-landscape ? 23px : 28px; clicked => { root.press-key("."); } }
+            CalcButton {
+                label: "⌫";
+                role: 0;
+                icon-commands: "M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z";
+                clicked => { root.press-key("BACKSPACE"); }
+            }
+            CalcButton { label: "="; role: 3; font-px: root.is-landscape ? 28px : 34px; clicked => { root.press-key("="); } }
+        }
+    }
+}

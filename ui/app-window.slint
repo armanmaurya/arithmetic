@@ -1,0 +1,232 @@
+import { M3Theme, HistoryEntry } from "theme.slint";
+import { PortraitScientificDrawer, LandscapeScientificPanel } from "components/scientific-drawer.slint";
+import { NumpadGrid } from "components/numpad-grid.slint";
+import { DisplayHistoryPanel } from "components/display-panel.slint";
+import { OverflowMenu, ModalsOverlay } from "components/overlays.slint";
+
+export { M3Theme, HistoryEntry }
+
+export component AppWindow inherits Window {
+    title: "Arithmetic";
+    icon: @image-url("../packaging/arithmetic.svg");
+    preferred-width: 412px;
+    preferred-height: 800px;
+    min-width: 360px;
+    min-height: 620px;
+    background: M3Theme.surface;
+
+    // Responsive Layout State: switches to Horizontal/Landscape layout when width >= 640px
+    property <bool> is-landscape: self.width >= 640px;
+
+    // Responsive collapsed display height: scales proportionally with window height so keypad buttons
+    // remain tall and well-proportioned even at minimum window height
+    property <length> display-collapsed-h: self.is-landscape
+        ? clamp(self.height * 0.28, 184px, 210px)
+        : (self.scientific-expanded
+            ? clamp(self.height * 0.27, 184px, 225px)
+            : clamp(self.height * 0.32, 205px, 265px));
+
+    property <length> sci-drawer-h: self.is-landscape
+        ? 0px
+        : (self.scientific-expanded ? 132px : 48px);
+
+    // Calculator Core State
+    in-out property <string> expression: "";
+    in-out property <int> cursor-byte-offset: 0;
+    public function set-cursor(pos: int) {
+        display-panel.set-cursor(pos);
+    }
+
+    in-out property <string> preview-result: "";
+    in-out property <bool> is-error: false;
+    in-out property <bool> just-evaluated: false;
+    in-out property <bool> use-radians: false;
+    in-out property <bool> inv-mode: false;
+    in-out property <bool> scientific-expanded: false;
+
+    // Screens, Menus & Modals State
+    // 0 = None, 1 = Main 3-dot Menu, 2 = History 3-dot Menu
+    in-out property <int> active-menu: 0;
+    in-out property <int> last-menu-type: 1;
+    // 0 = None, 1 = Choose Theme Dialog, 2 = Clear History Dialog
+    in-out property <int> active-modal: 0;
+    in-out property <int> pending-theme-mode: 2;
+    in-out property <bool> history-expanded: false;
+    in-out property <length> drag-offset-y: 0px;
+    in-out property <length> expr-scroll-offset: 0px;
+
+    // History Model
+    in-out property <[HistoryEntry]> history: [];
+
+    // Rust Callbacks
+    callback press-key(string);
+    callback expression-edited();
+    callback toggle-angle-unit();
+    callback clear-history();
+    callback select-history-item(string);
+
+    // Physical Keyboard Handler
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (root.active-modal != 0) {
+                if (event.text == Key.Escape) {
+                    root.active-modal = 0;
+                    return accept;
+                }
+                return reject;
+            }
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "!") { root.press-key("!"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) {
+                root.press-key("=");
+                return accept;
+            }
+            if (event.text == Key.Backspace) {
+                root.press-key("BACKSPACE");
+                return accept;
+            }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") {
+                root.press-key("AC");
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    // Root Surface
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: M3Theme.surface;
+        animate background { duration: 250ms; }
+
+        // 1A. PORTRAIT SCIENTIFIC DRAWER (Visible when width < 640px)
+        PortraitScientificDrawer {
+            x: 0px;
+            y: root.display-collapsed-h;
+            width: parent.width;
+            height: root.sci-drawer-h;
+            opacity: root.is-landscape ? 0.0 : 1.0;
+            use-radians: root.use-radians;
+            inv-mode <=> root.inv-mode;
+            scientific-expanded <=> root.scientific-expanded;
+            press-key(k) => { root.press-key(k); }
+            toggle-angle-unit => { root.toggle-angle-unit(); }
+
+            animate y, height, opacity {
+                duration: 240ms;
+                easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+            }
+        }
+
+        // 2. RESPONSIVE KEYPAD AREA
+        //    Left: 3x4 Scientific Panel (Slides/Expands in Landscape >= 640px)
+        //    Right: 4x5 Main Numpad & Operators Grid
+        Rectangle {
+            x: 0px;
+            y: root.display-collapsed-h + root.sci-drawer-h;
+            width: parent.width;
+            height: max(0px, parent.height - self.y);
+            background: transparent;
+
+            animate y, height {
+                duration: 240ms;
+                easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+            }
+
+            property <length> sci-panel-w: root.is-landscape ? (self.width - 32px) * 0.41 : 0px;
+            animate sci-panel-w {
+                duration: 260ms;
+                easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+            }
+
+            // 1B. LANDSCAPE LEFT SCIENTIFIC PANEL (3 columns x 4 rows)
+            LandscapeScientificPanel {
+                x: 16px;
+                y: root.is-landscape ? 12px : 4px;
+                width: parent.sci-panel-w;
+                height: max(0px, parent.height - self.y - 16px);
+                opacity: root.is-landscape ? 1.0 : 0.0;
+                visible: self.width > 1px;
+                use-radians: root.use-radians;
+                inv-mode <=> root.inv-mode;
+                press-key(k) => { root.press-key(k); }
+                toggle-angle-unit => { root.toggle-angle-unit(); }
+
+                animate opacity {
+                    duration: 240ms;
+                    easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+                }
+            }
+
+            // MAIN 4x5 NUMPAD & OPERATORS GRID
+            NumpadGrid {
+                x: 16px + parent.sci-panel-w;
+                y: root.is-landscape ? 12px : 4px;
+                width: max(0px, parent.width - 32px - parent.sci-panel-w);
+                height: max(0px, parent.height - self.y - 16px);
+                is-landscape: root.is-landscape;
+                press-key(k) => { root.press-key(k); }
+            }
+        }
+
+        // 3. UNIFIED DISPLAY & PULL-DOWN HISTORY CONTAINER (Overlaying Top)
+        display-panel := DisplayHistoryPanel {
+            x: 0px;
+            y: 0px;
+            width: 100%;
+            property <length> collapsed-h: root.display-collapsed-h;
+            height: root.history-expanded
+                ? clamp(parent.height + root.drag-offset-y, self.collapsed-h, parent.height)
+                : clamp(self.collapsed-h + root.drag-offset-y, self.collapsed-h, parent.height);
+            expression <=> root.expression;
+            cursor-byte-offset <=> root.cursor-byte-offset;
+            preview-result: root.preview-result;
+            is-error: root.is-error;
+            use-radians: root.use-radians;
+            history-expanded <=> root.history-expanded;
+            drag-offset-y <=> root.drag-offset-y;
+            expr-scroll-offset <=> root.expr-scroll-offset;
+            history: root.history;
+
+            press-key(k) => { root.press-key(k); }
+            expression-edited => { root.expression-edited(); }
+            toggle-angle-unit => { root.toggle-angle-unit(); }
+            select-history-item(val) => { root.select-history-item(val); }
+            open-overflow-menu => {
+                root.last-menu-type = root.history-expanded ? 2 : 1;
+                root.active-menu = root.history-expanded ? 2 : 1;
+            }
+        }
+
+        // 4. OVERFLOW 3-DOT FLOATING MENU
+        OverflowMenu {
+            active-menu <=> root.active-menu;
+            last-menu-type: root.last-menu-type;
+            history-expanded <=> root.history-expanded;
+            pending-theme-mode <=> root.pending-theme-mode;
+            active-modal <=> root.active-modal;
+        }
+
+        // 5. ANIMATED MODAL DIALOGS ("Choose theme" & "Clear")
+        ModalsOverlay {
+            active-modal <=> root.active-modal;
+            pending-theme-mode <=> root.pending-theme-mode;
+            history-expanded <=> root.history-expanded;
+            clear-history => { root.clear-history(); }
+        }
+    }
+}

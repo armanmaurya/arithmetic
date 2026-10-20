@@ -1,0 +1,26 @@
+# Maintainer: Arman Maurya <mauryaarman5@gmail.com>
+pkgname=arithmetic
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Material 3 scientific calculator written in Rust and Slint"
+arch=('x86_64' 'aarch64')
+url="https://github.com/armanmaurya/arithmetic"
+license=('MIT')
+depends=('gcc-libs' 'glibc' 'fontconfig' 'freetype2' 'libxkbcommon' 'wayland')
+makedepends=('cargo')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo build --frozen --release
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    install -Dm755 "target/release/arithmetic" "$pkgdir/usr/bin/arithmetic"
+    install -Dm644 "packaging/arithmetic.desktop" "$pkgdir/usr/share/applications/arithmetic.desktop"
+    install -Dm644 "packaging/arithmetic.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/arithmetic.svg"
+    install -Dm644 "LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

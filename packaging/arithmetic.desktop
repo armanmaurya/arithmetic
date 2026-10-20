@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Arithmetic
+GenericName=Calculator
+Comment=Material 3 scientific calculator
+Exec=arithmetic
+Icon=arithmetic
+Terminal=false
+Type=Application
+Categories=Utility;Calculator;Science;Math;
+Keywords=calculator;math;scientific;arithmetic;slint;
+StartupWMClass=arithmetic

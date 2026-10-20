@@ -1,0 +1,405 @@
+import { M3Theme, HistoryEntry } from "../theme.slint";
+import { M3Icon } from "m3-icon.slint";
+
+export component DisplayHistoryPanel inherits Rectangle {
+    in-out property <string> expression;
+    in-out property <int> cursor-byte-offset: 0;
+    in property <string> preview-result: "";
+    in property <bool> is-error: false;
+    in property <bool> use-radians: false;
+    in-out property <bool> history-expanded: false;
+    in-out property <length> drag-offset-y: 0px;
+    in-out property <length> expr-scroll-offset: 0px;
+    in property <[HistoryEntry]> history: [];
+
+    callback press-key(string);
+    callback expression-edited();
+    callback toggle-angle-unit();
+    callback select-history-item(string);
+    callback open-overflow-menu();
+
+    public function set-cursor(pos: int) {
+        expr-input.set-selection-offsets(pos, pos);
+        expr-input.focus();
+    }
+
+    public function focus-input() {
+        expr-input.focus();
+    }
+
+    background: M3Theme.display-surface;
+    border-bottom-left-radius: (root.history-expanded && root.drag-offset-y == 0px) ? 0px : 28px;
+    border-bottom-right-radius: (root.history-expanded && root.drag-offset-y == 0px) ? 0px : 28px;
+    clip: true;
+
+    animate height, border-bottom-left-radius, border-bottom-right-radius, background {
+        duration: 280ms;
+        easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+    }
+
+    property <bool> is-compact: !root.history-expanded && root.height < 200px;
+
+    VerticalLayout {
+        padding-top: 6px;
+        padding-bottom: root.history-expanded ? 16px : 12px;
+        spacing: 0px;
+
+        // Top App Bar inside Display/History Container
+        HorizontalLayout {
+            height: 36px;
+            padding-left: 16px;
+            padding-right: 8px;
+            alignment: space-between;
+
+            // Left: Either "DEG / RAD" badge OR Back Arrow + "History" when expanded
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+
+                if root.history-expanded : Rectangle {
+                    width: 38px;
+                    height: 38px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 19px;
+                    background: back-hist-touch.has-hover ? M3Theme.on-surface.with-alpha(0.08) : transparent;
+
+                    M3Icon {
+                        width: 22px;
+                        height: 22px;
+                        x: 8px;
+                        y: 8px;
+                        commands: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z";
+                        icon-color: M3Theme.on-surface;
+                    }
+
+                    back-hist-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.history-expanded = false; }
+                    }
+                }
+
+                if root.history-expanded : Text {
+                    text: "History";
+                    font-size: 20px;
+                    font-weight: 500;
+                    color: M3Theme.on-surface;
+                    vertical-alignment: center;
+                }
+
+                if !root.history-expanded : Rectangle {
+                    width: 48px;
+                    height: 28px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 6px;
+                    background: deg-top-touch.has-hover ? M3Theme.on-surface.with-alpha(0.08) : transparent;
+
+                    Text {
+                        text: root.use-radians ? "RAD" : "DEG";
+                        font-size: 13px;
+                        font-weight: 600;
+                        letter-spacing: 0.6px;
+                        color: M3Theme.on-surface-variant;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    deg-top-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.toggle-angle-unit(); }
+                    }
+                }
+            }
+
+            // Right: History Icon (when collapsed) + 3-Dot Overflow Menu (`more_vert`)
+            HorizontalLayout {
+                spacing: 2px;
+                alignment: end;
+
+                if !root.history-expanded : Rectangle {
+                    width: 40px;
+                    height: 40px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 20px;
+                    background: hist-icon-touch.has-hover ? M3Theme.on-surface.with-alpha(0.08) : transparent;
+
+                    M3Icon {
+                        width: 22px;
+                        height: 22px;
+                        x: 9px;
+                        y: 9px;
+                        commands: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z";
+                        icon-color: M3Theme.on-surface-variant;
+                    }
+
+                    hist-icon-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.history-expanded = true; }
+                    }
+                }
+
+                // 3-Dot Vertical Overflow Menu Button (`⋮`)
+                Rectangle {
+                    width: 40px;
+                    height: 40px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 20px;
+                    background: more-touch.has-hover ? M3Theme.on-surface.with-alpha(0.08) : transparent;
+
+                    M3Icon {
+                        width: 22px;
+                        height: 22px;
+                        x: 9px;
+                        y: 9px;
+                        commands: "M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z";
+                        icon-color: M3Theme.on-surface-variant;
+                    }
+
+                    more-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.open-overflow-menu(); }
+                    }
+                }
+            }
+        }
+
+        // Expandable History Tape Area (Visible as container expands)
+        Rectangle {
+            vertical-stretch: root.history-expanded ? 1 : 0;
+            height: root.history-expanded ? max(0px, root.height - 208px) : 0px;
+            opacity: root.history-expanded ? 1.0 : 0.0;
+            clip: true;
+
+            animate opacity { duration: 220ms; }
+
+            if root.history.length == 0 : Rectangle {
+                width: 100%;
+                height: 100%;
+
+                VerticalLayout {
+                    width: 100%;
+                    height: 100%;
+                    alignment: center;
+                    spacing: 10px;
+
+                    M3Icon {
+                        width: 48px;
+                        height: 48px;
+                        x: (parent.width - self.width) / 2;
+                        commands: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z";
+                        icon-color: M3Theme.outline;
+                    }
+
+                    Text {
+                        text: "No History";
+                        font-size: 18px;
+                        color: M3Theme.on-surface-variant;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+
+            if root.history.length > 0 : Flickable {
+                width: 100%;
+                height: 100%;
+
+                hist-list := VerticalLayout {
+                    width: parent.width;
+                    padding-left: 24px;
+                    padding-right: 24px;
+                    padding-top: 12px;
+                    padding-bottom: 12px;
+                    spacing: 18px;
+                    alignment: end;
+
+                    for item in root.history : VerticalLayout {
+                        spacing: 4px;
+
+                        // Past Expression (Tappable)
+                        Rectangle {
+                            height: 32px;
+                            border-radius: 8px;
+                            background: expr-tap.has-hover ? M3Theme.on-surface.with-alpha(0.08) : transparent;
+                            Text {
+                                width: 100%;
+                                height: 100%;
+                                text: item.expression;
+                                font-size: 22px;
+                                color: M3Theme.on-surface-variant;
+                                horizontal-alignment: right;
+                                vertical-alignment: center;
+                            }
+                            expr-tap := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    root.select-history-item(item.expression);
+                                    root.history-expanded = false;
+                                }
+                            }
+                        }
+
+                        // Past Result (Tappable)
+                        Rectangle {
+                            height: 40px;
+                            border-radius: 8px;
+                            background: res-tap.has-hover ? M3Theme.on-surface.with-alpha(0.08) : transparent;
+                            Text {
+                                width: 100%;
+                                height: 100%;
+                                text: "= \{item.result}";
+                                font-size: 30px;
+                                font-weight: 500;
+                                color: M3Theme.primary;
+                                horizontal-alignment: right;
+                                vertical-alignment: center;
+                            }
+                            res-tap := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    root.select-history-item(item.result);
+                                    root.history-expanded = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Divider & "Current expression" Header (Only visible when History is expanded)
+        if root.history-expanded : VerticalLayout {
+            padding-top: 4px;
+            spacing: 6px;
+            Rectangle {
+                height: 1px;
+                background: M3Theme.outline-variant.with-alpha(0.5);
+            }
+            HorizontalLayout {
+                padding-left: 24px;
+                padding-right: 24px;
+                Text {
+                    text: "Current expression";
+                    font-size: 13px;
+                    font-weight: 500;
+                    color: M3Theme.on-surface-variant;
+                }
+            }
+        }
+
+        // Main Expression & Live Preview Area (Horizontally scrolling, NO ellipsis, left edge 0px, right padding 24px)
+        VerticalLayout {
+            vertical-stretch: root.history-expanded ? 0 : 1;
+            padding-left: 0px;
+            padding-right: 24px;
+            padding-bottom: 6px;
+            spacing: 2px;
+            alignment: end;
+
+            // Active Expression Display (Editable TextInput with custom caret positioning!)
+            Rectangle {
+                height: root.is-compact ? 58px : 72px;
+                clip: true;
+                background: transparent;
+
+                expr-input := TextInput {
+                    height: 100%;
+                    property <length> max-overflow: max(0px, self.preferred-width - parent.width + 16px);
+                    width: max(parent.width, self.preferred-width + 16px);
+                    x: parent.width - self.width + clamp(root.expr-scroll-offset, 0px, self.max-overflow);
+                    text <=> root.expression;
+                    font-size: root.expression.character-count > 14 ? (root.is-compact ? 32px : 36px) :
+                               root.expression.character-count > 9 ? (root.is-compact ? 38px : 44px) :
+                               (root.is-compact ? 42px : 52px);
+                    font-weight: 400;
+                    color: root.is-error ? M3Theme.error : M3Theme.on-surface;
+                    horizontal-alignment: right;
+                    vertical-alignment: center;
+                    single-line: true;
+                    wrap: no-wrap;
+                    text-cursor-width: 2px;
+
+                    edited => {
+                        root.cursor-byte-offset = self.cursor-position-byte-offset;
+                        root.expression-edited();
+                    }
+                    accepted => {
+                        root.press-key("=");
+                    }
+                    cursor-position-changed(pos) => {
+                        root.cursor-byte-offset = self.cursor-position-byte-offset;
+                    }
+
+                    animate x {
+                        duration: 95ms;
+                        easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+                    }
+                    animate font-size, color {
+                        duration: 160ms;
+                        easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+                    }
+                }
+            }
+
+            // Live Preview Result Display (Also moves horizontally without ellipsis)
+            Rectangle {
+                height: root.is-compact ? 28px : 34px;
+                clip: true;
+                background: transparent;
+
+                Text {
+                    height: 100%;
+                    x: parent.width - self.preferred-width;
+                    text: root.preview-result;
+                    font-size: root.is-compact ? 20px : 24px;
+                    font-weight: 400;
+                    color: root.is-error ? M3Theme.error : M3Theme.on-surface-variant;
+                    vertical-alignment: center;
+                    opacity: root.preview-result == "" ? 0.0 : 0.85;
+
+                    animate x, opacity, color {
+                        duration: 140ms;
+                        easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+                    }
+                }
+            }
+        }
+
+        // Bottom Drag Handle Pill (Swipe down to open History, swipe up/tap to close)
+        Rectangle {
+            height: 18px;
+            background: transparent;
+
+            Rectangle {
+                width: 36px;
+                height: 4px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                border-radius: 2px;
+                background: M3Theme.outline;
+            }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                property <length> press-y: 0px;
+                pointer-event(event) => {
+                    if (event.kind == PointerEventKind.down) {
+                        self.press-y = self.mouse-y;
+                    } else if (event.kind == PointerEventKind.move && self.pressed) {
+                        root.drag-offset-y = self.mouse-y - self.press-y;
+                    } else if (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
+                        if (root.drag-offset-y > 50px) {
+                            root.history-expanded = true;
+                        } else if (root.drag-offset-y < -50px) {
+                            root.history-expanded = false;
+                        }
+                        root.drag-offset-y = 0px;
+                    }
+                }
+                clicked => {
+                    if (abs(root.drag-offset-y) < 10px) {
+                        root.history-expanded = !root.history-expanded;
+                    }
+                }
+            }
+        }
+    }
+}

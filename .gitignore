@@ -1,0 +1,29 @@
+# Rust build artifacts
+/target/
+/libs/
+**/*.rs.bk
+
+# Package outputs created during local packaging tests
+*.deb
+*.rpm
+*.AppImage
+*.tar.gz
+*.tar.zst
+*.pkg.tar.zst
+SHA256SUMS.txt
+
+# IDEs & Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Alternative VCS systems
+/.jj/
+/.hg/
+/.pijul/

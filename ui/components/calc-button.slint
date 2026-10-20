@@ -1,0 +1,97 @@
+import { M3Theme } from "../theme.slint";
+import { M3Icon } from "m3-icon.slint";
+
+export component CalcButton inherits Rectangle {
+    in property <string> label;
+    in property <string> superscript: "";
+    in property <string> icon-commands: "";
+    // 0 = Number, 1 = Operator (Secondary), 2 = AC (Tertiary), 3 = Equals (Primary),
+    // 4 = Scientific (Flat), 5 = Scientific Active (INV on), 6 = Landscape Scientific Pill
+    in property <int> role: 0;
+    in property <length> font-px: 28px;
+    callback clicked <=> touch.clicked;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+
+    property <length> resting-radius: min(self.width, self.height) / 2;
+    border-radius: touch.pressed ? 16px : self.resting-radius;
+
+    background: role == 3 ? M3Theme.primary :
+                role == 2 ? M3Theme.tertiary-container :
+                role == 1 ? M3Theme.secondary-container :
+                role == 5 ? M3Theme.secondary-container :
+                role == 6 ? M3Theme.surface-container-high :
+                role == 4 ? transparent :
+                M3Theme.num-button-bg;
+
+    animate border-radius {
+        duration: 160ms;
+        easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+    }
+    animate background {
+        duration: 200ms;
+        easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+    }
+
+    property <color> fg-color:
+        role == 3 ? M3Theme.on-primary :
+        role == 2 ? M3Theme.on-tertiary-container :
+        role == 1 ? M3Theme.on-secondary-container :
+        role == 5 ? M3Theme.on-secondary-container :
+        M3Theme.on-surface;
+
+    // Ripple / State Layer
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: parent.border-radius;
+        background: root.fg-color;
+        opacity: touch.pressed ? 0.18 : touch.has-hover ? 0.08 : 0.0;
+        animate opacity { duration: 120ms; easing: ease-out; }
+    }
+
+    if root.icon-commands != "" : M3Icon {
+        width: 26px;
+        height: 26px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        commands: root.icon-commands;
+        icon-color: root.fg-color;
+    }
+
+    if root.icon-commands == "" && root.superscript == "" : Text {
+        width: 100%;
+        height: 100%;
+        text: root.label;
+        color: root.fg-color;
+        font-size: touch.pressed ? (root.font-px - 1px) : root.font-px;
+        font-weight: (role == 0 || role == 4) ? 400 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        animate color, font-size { duration: 120ms; }
+    }
+
+    if root.icon-commands == "" && root.superscript != "" : HorizontalLayout {
+        alignment: center;
+        spacing: 1px;
+        Text {
+            text: root.label;
+            color: root.fg-color;
+            font-size: root.font-px;
+            font-weight: 400;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.superscript;
+            color: root.fg-color;
+            font-size: 11px;
+            font-weight: 600;
+            y: (parent.height / 2) - 12px;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}

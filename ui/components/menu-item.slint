@@ -1,0 +1,79 @@
+import { M3Theme } from "../theme.slint";
+
+export component MenuItem inherits Rectangle {
+    in property <string> label;
+    callback clicked <=> touch.clicked;
+
+    height: 44px;
+    background: touch.pressed ? M3Theme.on-surface.with-alpha(0.14) :
+                touch.has-hover ? M3Theme.on-surface.with-alpha(0.08) : transparent;
+
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        Text {
+            text: root.label;
+            font-size: 15px;
+            color: M3Theme.on-surface;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+export component RadioRow inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected: false;
+    callback clicked <=> touch.clicked;
+
+    height: 48px;
+    border-radius: 12px;
+    background: touch.has-hover ? M3Theme.on-surface.with-alpha(0.06) : transparent;
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        spacing: 16px;
+        alignment: start;
+
+        // Outer Radio Ring
+        Rectangle {
+            width: 20px;
+            height: 20px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 10px;
+            border-width: 2px;
+            border-color: root.selected ? M3Theme.primary : M3Theme.on-surface-variant;
+            background: transparent;
+            animate border-color { duration: 180ms; }
+
+            // Inner Radio Dot
+            Rectangle {
+                width: root.selected ? 10px : 0px;
+                height: root.selected ? 10px : 0px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                border-radius: self.width / 2;
+                background: M3Theme.primary;
+                animate width, height, border-radius {
+                    duration: 180ms;
+                    easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+                }
+            }
+        }
+
+        Text {
+            text: root.label;
+            font-size: 16px;
+            color: M3Theme.on-surface;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}

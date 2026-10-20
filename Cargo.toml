@@ -1,0 +1,59 @@
+[package]
+name = "arithmetic"
+version = "0.1.0"
+edition = "2024"
+description = "A modern Material 3 scientific calculator for Linux"
+license = "MIT"
+authors = ["Arman Maurya <mauryaarman5@gmail.com>"]
+repository = "https://github.com/armanmaurya/arithmetic"
+categories = ["gui", "science"]
+keywords = ["calculator", "math", "scientific", "slint", "material-you"]
+
+[dependencies]
+slint = "1.18.1"
+
+[build-dependencies]
+slint-build = "1.18.1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true
+opt-level = 3
+
+# Debian & Ubuntu (.deb via `cargo deb`)
+[package.metadata.deb]
+maintainer = "Arman Maurya <mauryaarman5@gmail.com>"
+copyright = "2026 Arman Maurya"
+license-file = ["LICENSE", "4"]
+extended-description = "A sleek, responsive Material 3 scientific calculator for Linux desktop environments and window managers like Hyprland."
+section = "math"
+priority = "optional"
+assets = [
+    ["target/release/arithmetic", "usr/bin/", "755"],
+    ["packaging/arithmetic.desktop", "usr/share/applications/", "644"],
+    ["packaging/arithmetic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+]
+
+# Universal AppImage (.AppImage via `cargo appimage`)
+[package.metadata.appimage]
+icon = "packaging/arithmetic.svg"
+auto_link = true
+
+# Arch Linux AUR (`cargo aur`)
+[package.metadata.aur]
+depends = ["gcc-libs", "glibc", "fontconfig", "freetype2", "libxkbcommon", "wayland"]
+files = [
+    ["packaging/arithmetic.desktop", "/usr/share/applications/arithmetic.desktop", "644"],
+    ["packaging/arithmetic.svg", "/usr/share/icons/hicolor/scalable/apps/arithmetic.svg", "644"],
+    ["LICENSE", "/usr/share/licenses/arithmetic/LICENSE", "644"],
+]
+
+# Fedora, openSUSE & RHEL (.rpm via `cargo generate-rpm`)
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/arithmetic", dest = "/usr/bin/arithmetic", mode = "755" },
+    { source = "packaging/arithmetic.desktop", dest = "/usr/share/applications/arithmetic.desktop", mode = "644" },
+    { source = "packaging/arithmetic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/arithmetic.svg", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/licenses/arithmetic/LICENSE", mode = "644" },
+]
