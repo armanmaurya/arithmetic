@@ -30,7 +30,7 @@ chmod +x arithmetic-*.AppImage
 ### Debian / Ubuntu
 Download the `.deb` package from [Releases](../../releases) and install:
 ```bash
-sudo dpkg -i arithmetic_*.deb
+sudo dpkg -i arithmetic-*.deb
 ```
 
 ### Fedora, openSUSE & RHEL
