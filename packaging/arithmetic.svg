@@ -1,64 +1,58 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
-    <!-- Background Squircle Gradient -->
+    <!-- Outer Base Squircle Gradient -->
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#262730"/>
-      <stop offset="100%" stop-color="#141418"/>
+      <stop offset="0%" stop-color="#242630"/>
+      <stop offset="100%" stop-color="#121317"/>
     </linearGradient>
 
-    <!-- Display Screen Gradient -->
-    <linearGradient id="dispGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#1B1C22"/>
-      <stop offset="100%" stop-color="#23252E"/>
-    </linearGradient>
-
-    <!-- Operator Key Gradient -->
+    <!-- Secondary Operator Keys Gradient (+, −, ×) -->
     <linearGradient id="keyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#3C4356"/>
-      <stop offset="100%" stop-color="#303544"/>
+      <stop offset="0%" stop-color="#3A4154"/>
+      <stop offset="100%" stop-color="#2B303E"/>
     </linearGradient>
 
-    <!-- Accent Equals Key Gradient (Material You Primary Blue) -->
+    <!-- Primary Accent Equals Key Gradient (=) -->
     <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4B77D4"/>
-      <stop offset="100%" stop-color="#294F99"/>
+      <stop offset="0%" stop-color="#4E7DE8"/>
+      <stop offset="100%" stop-color="#2652B0"/>
     </linearGradient>
 
     <!-- Subtle Drop Shadow Filter for Keys -->
-    <filter id="keyShadow" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.45"/>
+    <filter id="keyShadow" x="-15%" y="-15%" width="130%" height="135%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.45"/>
     </filter>
   </defs>
 
-  <!-- Base Squircle Container -->
-  <rect x="16" y="16" width="224" height="224" rx="52" fill="url(#bgGrad)" stroke="#3E414F" stroke-width="2"/>
+  <!-- Outer Base Squircle Tile -->
+  <rect x="14" y="14" width="228" height="228" rx="56" fill="url(#bgGrad)" stroke="#353846" stroke-width="2"/>
 
-  <!-- Top Display Screen -->
-  <rect x="36" y="36" width="184" height="48" rx="14" fill="url(#dispGrad)" stroke="#2F313C" stroke-width="1.5"/>
-  <!-- Display Digits Preview ("3.14") -->
-  <path d="M194 62h-20v-2.5l11-11c2-2 3-3.8 3-5.5 0-2-1.5-3.5-4-3.5-2 0-3.5 1-4 2.5l-2.5-1.5c1-2.5 3.5-4 7-4 4 0 6.5 2.5 6.5 6 0 2.2-1.2 4.4-3.5 6.7l-8.5 8.8h14.5V62z" fill="#B4C5FF" opacity="0.9"/>
-  <circle cx="166" cy="61" r="2" fill="#B4C5FF" opacity="0.9"/>
-  <path d="M156 47h-9v3.5h5.5V62h3.5V47z" fill="#B4C5FF" opacity="0.9"/>
-
-  <!-- Keypad Matrix (2x2 Grid) -->
+  <!-- ======================================================== -->
+  <!-- 2x2 Balanced Material 3 Tactile Key Matrix (86x86 each)  -->
+  <!-- ======================================================== -->
 
   <!-- Key 1 (Top-Left): Addition "+" -->
-  <rect x="36" y="96" width="86" height="54" rx="20" fill="url(#keyGrad)" filter="url(#keyShadow)"/>
-  <!-- Plus Glyph -->
-  <path d="M79 113v7h-7v6h7v7h6v-7h7v-6h-7v-7h-6z" fill="#DAE2F9"/>
+  <rect x="37" y="37" width="86" height="86" rx="26" fill="url(#keyGrad)" stroke="#4A526A" stroke-width="1" filter="url(#keyShadow)"/>
+  <!-- "+" Glyph (Center: 80, 80) -->
+  <rect x="65" y="76" width="30" height="8" rx="4" fill="#E1E7F8"/>
+  <rect x="76" y="65" width="8" height="30" rx="4" fill="#E1E7F8"/>
 
   <!-- Key 2 (Top-Right): Minus "−" -->
-  <rect x="134" y="96" width="86" height="54" rx="20" fill="url(#keyGrad)" filter="url(#keyShadow)"/>
-  <!-- Minus Glyph -->
-  <path d="M167 123h20v6h-20z" fill="#DAE2F9"/>
+  <rect x="133" y="37" width="86" height="86" rx="26" fill="url(#keyGrad)" stroke="#4A526A" stroke-width="1" filter="url(#keyShadow)"/>
+  <!-- "−" Glyph (Center: 176, 80) -->
+  <rect x="161" y="76" width="30" height="8" rx="4" fill="#E1E7F8"/>
 
   <!-- Key 3 (Bottom-Left): Multiply "×" -->
-  <rect x="36" y="162" width="86" height="54" rx="20" fill="url(#keyGrad)" filter="url(#keyShadow)"/>
-  <!-- Multiply Glyph -->
-  <path d="M73.5 178l4.5-4.5 11 11 11-11 4.5 4.5-11 11 11 11-4.5 4.5-11-11-11 11-4.5-4.5 11-11-11-11z" fill="#DAE2F9"/>
+  <rect x="37" y="133" width="86" height="86" rx="26" fill="url(#keyGrad)" stroke="#4A526A" stroke-width="1" filter="url(#keyShadow)"/>
+  <!-- "×" Glyph (Center: 80, 176) -->
+  <g transform="translate(80, 176) rotate(45)">
+    <rect x="-15" y="-4" width="30" height="8" rx="4" fill="#E1E7F8"/>
+    <rect x="-4" y="-15" width="8" height="30" rx="4" fill="#E1E7F8"/>
+  </g>
 
-  <!-- Key 4 (Bottom-Right): Equals "=" (Accent Pill) -->
-  <rect x="134" y="162" width="86" height="54" rx="20" fill="url(#accentGrad)" filter="url(#keyShadow)"/>
-  <!-- Equals Glyph -->
-  <path d="M167 182h20v5h-20zm0 10h20v5h-20z" fill="#FFFFFF"/>
+  <!-- Key 4 (Bottom-Right): Equals "=" (Signature Material You Accent Pill) -->
+  <rect x="133" y="133" width="86" height="86" rx="26" fill="url(#accentGrad)" stroke="#6694FA" stroke-width="1" filter="url(#keyShadow)"/>
+  <!-- "=" Glyph (Center: 176, 176) -->
+  <rect x="161" y="167" width="30" height="7.5" rx="3.75" fill="#FFFFFF"/>
+  <rect x="161" y="178.5" width="30" height="7.5" rx="3.75" fill="#FFFFFF"/>
 </svg>
