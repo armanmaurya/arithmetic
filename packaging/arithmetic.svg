@@ -17,41 +17,35 @@
       <stop offset="0%" stop-color="#4E7DE8"/>
       <stop offset="100%" stop-color="#2652B0"/>
     </linearGradient>
-
-    <!-- Subtle Drop Shadow Filter for Keys -->
-    <filter id="keyShadow" x="-15%" y="-15%" width="130%" height="135%">
-      <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.45"/>
-    </filter>
   </defs>
 
   <!-- Outer Base Squircle Tile -->
   <rect x="14" y="14" width="228" height="228" rx="56" fill="url(#bgGrad)" stroke="#353846" stroke-width="2"/>
 
-  <!-- ======================================================== -->
-  <!-- 2x2 Balanced Material 3 Tactile Key Matrix (86x86 each)  -->
-  <!-- ======================================================== -->
+  <!-- Key Drop Shadows (SVG 1.1 compatible) -->
+  <rect x="37" y="41" width="86" height="86" rx="26" fill="#000000" fill-opacity="0.35"/>
+  <rect x="133" y="41" width="86" height="86" rx="26" fill="#000000" fill-opacity="0.35"/>
+  <rect x="37" y="137" width="86" height="86" rx="26" fill="#000000" fill-opacity="0.35"/>
+  <rect x="133" y="137" width="86" height="86" rx="26" fill="#000000" fill-opacity="0.35"/>
 
   <!-- Key 1 (Top-Left): Addition "+" -->
-  <rect x="37" y="37" width="86" height="86" rx="26" fill="url(#keyGrad)" stroke="#4A526A" stroke-width="1" filter="url(#keyShadow)"/>
-  <!-- "+" Glyph (Center: 80, 80) -->
+  <rect x="37" y="37" width="86" height="86" rx="26" fill="url(#keyGrad)" stroke="#4A526A" stroke-width="1"/>
   <rect x="65" y="76" width="30" height="8" rx="4" fill="#E1E7F8"/>
   <rect x="76" y="65" width="8" height="30" rx="4" fill="#E1E7F8"/>
 
   <!-- Key 2 (Top-Right): Minus "−" -->
-  <rect x="133" y="37" width="86" height="86" rx="26" fill="url(#keyGrad)" stroke="#4A526A" stroke-width="1" filter="url(#keyShadow)"/>
-  <!-- "−" Glyph (Center: 176, 80) -->
+  <rect x="133" y="37" width="86" height="86" rx="26" fill="url(#keyGrad)" stroke="#4A526A" stroke-width="1"/>
   <rect x="161" y="76" width="30" height="8" rx="4" fill="#E1E7F8"/>
 
   <!-- Key 3 (Bottom-Left): Multiply "×" -->
-  <rect x="37" y="133" width="86" height="86" rx="26" fill="url(#keyGrad)" stroke="#4A526A" stroke-width="1" filter="url(#keyShadow)"/>
-  <!-- "×" Glyph (Center: 80, 176) -->
+  <rect x="37" y="133" width="86" height="86" rx="26" fill="url(#keyGrad)" stroke="#4A526A" stroke-width="1"/>
   <g transform="translate(80, 176) rotate(45)">
     <rect x="-15" y="-4" width="30" height="8" rx="4" fill="#E1E7F8"/>
     <rect x="-4" y="-15" width="8" height="30" rx="4" fill="#E1E7F8"/>
   </g>
 
   <!-- Key 4 (Bottom-Right): Equals "=" (Signature Material You Accent Pill) -->
-  <rect x="133" y="133" width="86" height="86" rx="26" fill="url(#accentGrad)" stroke="#6694FA" stroke-width="1" filter="url(#keyShadow)"/>
+  <rect x="133" y="133" width="86" height="86" rx="26" fill="url(#accentGrad)" stroke="#6694FA" stroke-width="1"/>
   <!-- "=" Glyph (Center: 176, 176) -->
   <rect x="161" y="167" width="30" height="7.5" rx="3.75" fill="#FFFFFF"/>
   <rect x="161" y="178.5" width="30" height="7.5" rx="3.75" fill="#FFFFFF"/>

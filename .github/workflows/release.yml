@@ -10,8 +10,8 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    name: Build Release Packages
+  build-packages:
+    name: Build Standard Packages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -66,14 +66,48 @@ jobs:
           cargo aur -o target/dist/
           rm -f target/dist/PKGBUILD
 
+      - name: Upload Standard Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: standard-pkgs
+          path: target/dist/*
+          retention-days: 1
+
+  build-arch:
+    name: Build Arch Package
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm rust fontconfig freetype2 libxkbcommon wayland
+
       - name: Build Arch Linux Package (.pkg.tar.zst)
         run: |
-          docker run --rm -v "$PWD:/work" -w /work archlinux:base-devel bash -c "
-            pacman -Syu --noconfirm rust fontconfig freetype2 libxkbcommon wayland
-            useradd -u $(id -u) -o -m builder
-            chown -R builder /work
-            su builder -c './packaging/build-arch.sh'
-          "
+          useradd -m builder
+          chown -R builder:builder .
+          su builder -c './packaging/build-arch.sh'
+
+      - name: Upload Arch Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-pkg
+          path: target/dist/*.pkg.tar.zst
+          retention-days: 1
+
+  release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: [build-packages, build-arch]
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: target/dist
+          merge-multiple: true
 
       - name: Normalize Asset Names
         run: |
@@ -91,7 +125,7 @@ jobs:
       - name: Generate Checksums
         run: |
           cd target/dist
-          rm -f SHA256SUMS.txt
+          chmod +x *.AppImage
           sha256sum * > SHA256SUMS.txt
 
       - name: Create GitHub Release (Draft)
