@@ -96,9 +96,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Cargo and Git
+      - name: Install build dependencies
         run: |
-          pacman -Sy --noconfirm cargo git
+          pacman -Sy --noconfirm cargo git fontconfig freetype2 libxkbcommon wayland
 
       - name: Build Arch Linux package (.pkg.tar.zst)
         run: |
