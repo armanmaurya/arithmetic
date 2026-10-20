@@ -59,8 +59,9 @@ jobs:
       - name: Build Universal AppImage (cargo appimage)
         run: |
           cargo appimage
+          VERSION="${GITHUB_REF_NAME#v}"
           if ls target/appimage/*.AppImage 1>/dev/null 2>&1; then
-            cp target/appimage/*.AppImage target/dist/
+            cp target/appimage/*.AppImage "target/dist/arithmetic-${VERSION}-x86_64.AppImage"
           fi
 
       - name: Build Standalone Release Tarball (cargo aur)
