@@ -11,68 +11,31 @@
 
 ---
 
-## Features
+## Installation
 
-- **Material 3 / Material You Design**: Seamless light, dark, and system default themes with dynamic squircle morph animations.
-- **Pull-Down Persistent History**: Swipe down or tap the drag pill to open the calculation history tape; entries persist across app restarts and can be clicked to reuse past expressions or results.
-- **Editable Expression & Caret Positioning**: Click anywhere in the expression to place the cursor and insert or delete characters mid-expression.
-- **No Ellipsis Overflow**: Expressions smoothly scroll horizontally with zero padding clipping brackets or descenders.
-- **Expandable Scientific Panel**:
-  - Portrait mode: Smooth expandable drawer with trigonometry, inverse trig (`INV`), logarithms (`ln`, `log`), powers (`x²`, `eˣ`, `10ˣ`, `^`), factorial (`!`), and constants (`π`, `e`).
-  - Landscape mode: Automatically switches to an Android-style dual-pane layout (3×4 scientific panel on left, 4×5 numpad on right) when window width ≥ 640px.
-- **Native Hyprland Integration**: Automatically launches floating and centered in Hyprland without tiling conflicts.
-- **Self-Contained Native Binary**: Compiles directly into a single stripped native executable with zero external runtime UI dependencies.
-
----
-
-## Installation & Packaging
-
-### 1. Arch Linux / AUR
-Build and install using Arch's official `makepkg`:
-```bash
-cd packaging
-makepkg -si
-```
-Or via an AUR helper:
+### Arch Linux / AUR
+Install via your favorite AUR helper:
 ```bash
 yay -S arithmetic
 ```
 
-### 2. Universal AppImage (`cargo appimage`)
-Build the standalone AppImage:
-```bash
-cargo appimage
-```
-Or run the prebuilt AppImage from [Releases](../../releases):
+### Universal AppImage
+Download the prebuilt AppImage from [Releases](../../releases), make it executable, and run:
 ```bash
 chmod +x arithmetic-*.AppImage
 ./arithmetic-*.AppImage
 ```
 
-### 3. Debian / Ubuntu (`cargo deb`)
-Build the `.deb` package:
+### Debian / Ubuntu
+Download the `.deb` package from [Releases](../../releases) and install:
 ```bash
-cargo deb
-```
-Install the package:
-```bash
-sudo dpkg -i target/debian/arithmetic_*.deb
+sudo dpkg -i arithmetic_*.deb
 ```
 
-### 4. Fedora, openSUSE & RHEL (`cargo generate-rpm`)
-Build the `.rpm` package:
+### Fedora, openSUSE & RHEL
+Download the `.rpm` package from [Releases](../../releases) and install:
 ```bash
-cargo generate-rpm
-```
-Install the package:
-```bash
-sudo dnf install target/generate-rpm/arithmetic-*.rpm
-```
-
-### 5. Direct Cargo Install
-Install directly to `~/.cargo/bin`:
-```bash
-cargo install --path .
+sudo dnf install ./arithmetic-*.rpm
 ```
 
 ---
