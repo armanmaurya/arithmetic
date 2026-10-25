@@ -1,0 +1,297 @@
+export struct HistoryEntry {
+    expression: string,
+    result: string,
+    timestamp: string,
+}
+
+component RetroButton inherits Rectangle {
+    in property <string> label;
+    in property <color> text-color: #000000;
+    in property <length> font-px: 16px;
+    in property <bool> bold: false;
+    callback clicked <=> touch.clicked;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+
+    border-radius: 2px;
+    background: touch.pressed ? #BDB8AE : #D4D0C8;
+
+    // Bevel highlights & shadows
+    // Top & Left highlight
+    Rectangle {
+        x: 0; y: 0; width: 100%; height: 2px;
+        background: touch.pressed ? #404040 : #FFFFFF;
+    }
+    Rectangle {
+        x: 0; y: 0; width: 2px; height: 100%;
+        background: touch.pressed ? #404040 : #FFFFFF;
+    }
+    // Bottom & Right shadow
+    Rectangle {
+        x: 0; y: parent.height - 2px; width: 100%; height: 2px;
+        background: touch.pressed ? #FFFFFF : #404040;
+    }
+    Rectangle {
+        x: parent.width - 2px; y: 0; width: 2px; height: 100%;
+        background: touch.pressed ? #FFFFFF : #404040;
+    }
+
+    Text {
+        width: 100%;
+        height: 100%;
+        x: touch.pressed ? 1px : 0px;
+        y: touch.pressed ? 1px : 0px;
+        text: root.label;
+        color: root.text-color;
+        font-size: root.font-px;
+        font-weight: root.bold ? 700 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Classic Calculator";
+    preferred-width: 350px;
+    preferred-height: 440px;
+    min-width: 320px;
+    min-height: 400px;
+    background: #ECE9D8;
+
+    // Standard Calculator State Contract
+    in-out property <string> expression: "";
+    in-out property <int> cursor-byte-offset: 0;
+    in-out property <string> preview-result: "";
+    in-out property <bool> is-error: false;
+    in-out property <bool> just-evaluated: false;
+    in-out property <bool> use-radians: false;
+    in-out property <bool> inv-mode: false;
+    in-out property <[HistoryEntry]> history: [];
+
+    // Callbacks
+    callback press-key(string);
+    callback expression-edited();
+    callback toggle-angle-unit();
+    callback clear-history();
+    callback select-history-item(string);
+    callback switch-skin(string);
+
+    // Keyboard Handler
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) {
+                root.press-key("=");
+                return accept;
+            }
+            if (event.text == Key.Backspace) {
+                root.press-key("BACKSPACE");
+                return accept;
+            }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") {
+                root.press-key("AC");
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    VerticalLayout {
+        padding: 8px;
+        spacing: 8px;
+
+        // Top Status & Skin Selector Bar
+        HorizontalLayout {
+            spacing: 6px;
+            height: 24px;
+
+            Rectangle {
+                width: 58px;
+                background: #D4D0C8;
+                border-radius: 2px;
+                border-width: 1px;
+                border-color: #808080;
+                Text {
+                    text: root.use-radians ? "RAD" : "DEG";
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: #000080;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.toggle-angle-unit(); }
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+
+            // Skin switcher buttons
+            Rectangle {
+                width: 72px;
+                background: #D4D0C8;
+                border-radius: 2px;
+                border-width: 1px;
+                border-color: #808080;
+                Text {
+                    text: "Material 3";
+                    font-size: 11px;
+                    color: #000000;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.switch-skin("material-3"); }
+                }
+            }
+
+            Rectangle {
+                width: 78px;
+                background: #D4D0C8;
+                border-radius: 2px;
+                border-width: 1px;
+                border-color: #808080;
+                Text {
+                    text: "Compact Bar";
+                    font-size: 11px;
+                    color: #000000;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.switch-skin("compact-bar"); }
+                }
+            }
+        }
+
+        // Vintage LCD Display Frame (Inset Bevel)
+        Rectangle {
+            height: 72px;
+            background: #D8E4D0; // Classic pale LCD green
+            border-radius: 2px;
+            clip: true;
+
+            // Inset bevel borders: top/left dark shadow, bottom/right white highlight
+            Rectangle {
+                x: 0; y: 0; width: 100%; height: 2px;
+                background: #606060;
+            }
+            Rectangle {
+                x: 0; y: 0; width: 2px; height: 100%;
+                background: #606060;
+            }
+            Rectangle {
+                x: 0; y: parent.height - 1px; width: 100%; height: 1px;
+                background: #FFFFFF;
+            }
+            Rectangle {
+                x: parent.width - 1px; y: 0; width: 1px; height: 100%;
+                background: #FFFFFF;
+            }
+
+            VerticalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                padding-top: 4px;
+                padding-bottom: 4px;
+                alignment: space-between;
+
+                // Sub-text: preview or expression
+                Text {
+                    text: root.expression == "" ? "0" : (root.preview-result != "" ? root.expression + " = " + root.preview-result : root.expression);
+                    font-size: 12px;
+                    color: root.is-error ? #800000 : #4B5A42;
+                    horizontal-alignment: end;
+                }
+
+                // Main LCD digital readout
+                Text {
+                    text: root.expression == "" ? "0" : (root.is-error ? "Error" : root.expression);
+                    font-size: 26px;
+                    font-weight: 700;
+                    color: #1A2416;
+                    horizontal-alignment: end;
+                }
+            }
+        }
+
+        // Keypad Grid (Retro desktop calculator layout)
+        VerticalLayout {
+            spacing: 5px;
+            vertical-stretch: 1;
+
+            // Row 1: Memory & Clear Row
+            HorizontalLayout {
+                spacing: 5px;
+                vertical-stretch: 1;
+                RetroButton { label: "AC"; text-color: #800000; bold: true; clicked => { root.press-key("AC"); } }
+                RetroButton { label: "⌫"; text-color: #000000; clicked => { root.press-key("BACKSPACE"); } }
+                RetroButton { label: "( )"; text-color: #000080; clicked => { root.press-key("()"); } }
+                RetroButton { label: "÷"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("÷"); } }
+            }
+
+            // Row 2: 7, 8, 9, ×
+            HorizontalLayout {
+                spacing: 5px;
+                vertical-stretch: 1;
+                RetroButton { label: "7"; bold: true; clicked => { root.press-key("7"); } }
+                RetroButton { label: "8"; bold: true; clicked => { root.press-key("8"); } }
+                RetroButton { label: "9"; bold: true; clicked => { root.press-key("9"); } }
+                RetroButton { label: "×"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("×"); } }
+            }
+
+            // Row 3: 4, 5, 6, −
+            HorizontalLayout {
+                spacing: 5px;
+                vertical-stretch: 1;
+                RetroButton { label: "4"; bold: true; clicked => { root.press-key("4"); } }
+                RetroButton { label: "5"; bold: true; clicked => { root.press-key("5"); } }
+                RetroButton { label: "6"; bold: true; clicked => { root.press-key("6"); } }
+                RetroButton { label: "−"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("−"); } }
+            }
+
+            // Row 4: 1, 2, 3, +
+            HorizontalLayout {
+                spacing: 5px;
+                vertical-stretch: 1;
+                RetroButton { label: "1"; bold: true; clicked => { root.press-key("1"); } }
+                RetroButton { label: "2"; bold: true; clicked => { root.press-key("2"); } }
+                RetroButton { label: "3"; bold: true; clicked => { root.press-key("3"); } }
+                RetroButton { label: "+"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("+"); } }
+            }
+
+            // Row 5: 0, ., %, =
+            HorizontalLayout {
+                spacing: 5px;
+                vertical-stretch: 1;
+                RetroButton { label: "0"; bold: true; clicked => { root.press-key("0"); } }
+                RetroButton { label: "."; bold: true; font-px: 20px; clicked => { root.press-key("."); } }
+                RetroButton { label: "%"; text-color: #000080; clicked => { root.press-key("%"); } }
+                RetroButton { label: "="; text-color: #800000; font-px: 20px; bold: true; clicked => { root.press-key("="); } }
+            }
+        }
+    }
+}

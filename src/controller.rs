@@ -1,8 +1,17 @@
 use crate::engine::{evaluate_expression, format_number, has_operator_or_func, pop_last_token};
-use crate::storage::{clear_saved_history, load_history, save_history};
-use crate::{AppWindow, HistoryEntry};
+use crate::storage::{clear_saved_history, load_history, load_settings, save_history, save_settings};
+use crate::{AppWindow, HistoryEntry, SkinDialog};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::rc::Rc;
+
+pub fn skin_window_size(skin_id: &str, variant_id: &str) -> (f32, f32) {
+    let skins = crate::skin::discover_skins();
+    if let Some(s) = skins.iter().find(|s| s.manifest.id == skin_id) {
+        let v = s.active_variant(Some(variant_id));
+        return (v.width, v.height);
+    }
+    (412.0, 780.0)
+}
 
 fn clamp_char_boundary(s: &str, byte_offset: usize) -> usize {
     let mut idx = byte_offset.min(s.len());
@@ -50,11 +59,91 @@ fn update_live_preview(ui: &AppWindow) {
     }
 }
 
-pub fn setup_callbacks(ui: &AppWindow) {
+pub fn refresh_skins_state(ui: &AppWindow, dialog: &SkinDialog) -> bool {
+    let discovered = crate::skin::discover_skins();
+    let has_skins = !discovered.is_empty();
+
+    let mut settings = load_settings();
+
+    let skin_models: Vec<crate::SkinModelEntry> = discovered
+        .iter()
+        .map(|s| {
+            let active_var = if s.manifest.id == settings.active_skin {
+                settings.active_variant.clone()
+            } else {
+                s.manifest.default_variant.clone()
+            };
+            let variants: Vec<crate::SkinVariantEntry> = s
+                .manifest
+                .variants
+                .iter()
+                .map(|v| crate::SkinVariantEntry {
+                    id: v.id.clone().into(),
+                    name: v.name.clone().into(),
+                    width: v.width,
+                    height: v.height,
+                })
+                .collect();
+            let has_vars = variants.len() > 1;
+            crate::SkinModelEntry {
+                id: s.manifest.id.clone().into(),
+                name: s.manifest.name.clone().into(),
+                description: s.manifest.description.clone().into(),
+                author: s.manifest.author.clone().into(),
+                has_variants: has_vars,
+                active_variant: active_var.into(),
+                variants: ModelRc::new(VecModel::from(variants)),
+            }
+        })
+        .collect();
+    dialog.set_available_skins(ModelRc::new(VecModel::from(skin_models)));
+
+    if has_skins {
+        ui.set_has_skins(true);
+        let target_skin = if discovered.iter().any(|s| s.manifest.id == settings.active_skin) {
+            settings.active_skin.clone()
+        } else {
+            let first_id = discovered[0].manifest.id.clone();
+            settings.active_skin = first_id.clone();
+            settings.active_variant = discovered[0].manifest.default_variant.clone();
+            save_settings(&settings);
+            first_id
+        };
+
+        let target_variant = settings.active_variant.clone();
+        let (w, h) = skin_window_size(&target_skin, &target_variant);
+
+        ui.set_active_skin(target_skin.clone().into());
+        ui.set_active_variant(target_variant.clone().into());
+        ui.set_custom_skin_w(w);
+        ui.set_custom_skin_h(h);
+        ui.window().set_size(slint::LogicalSize::new(w, h));
+
+        dialog.set_selected_skin(target_skin.into());
+        dialog.set_selected_variant(target_variant.into());
+        true
+    } else {
+        ui.set_has_skins(false);
+        ui.set_active_skin("".into());
+        ui.set_active_variant("".into());
+        let (w, h) = (460.0, 340.0);
+        ui.set_custom_skin_w(w);
+        ui.set_custom_skin_h(h);
+        ui.window().set_size(slint::LogicalSize::new(w, h));
+
+        dialog.set_selected_skin("".into());
+        dialog.set_selected_variant("".into());
+        false
+    }
+}
+
+pub fn setup_callbacks(ui: &AppWindow, dialog: &SkinDialog) {
     let history_model = Rc::new(VecModel::<HistoryEntry>::from(load_history()));
     ui.set_history(ModelRc::from(history_model.clone()));
 
-    // Direct keyboard edits inside TextInput
+    refresh_skins_state(ui, dialog);
+
+    // 1. Direct keyboard edits inside TextInput
     {
         let ui_handle = ui.as_weak();
         ui.on_expression_edited(move || {
@@ -65,7 +154,7 @@ pub fn setup_callbacks(ui: &AppWindow) {
         });
     }
 
-    // Toggle DEG / RAD
+    // 2. Toggle DEG / RAD
     {
         let ui_handle = ui.as_weak();
         ui.on_toggle_angle_unit(move || {
@@ -76,7 +165,7 @@ pub fn setup_callbacks(ui: &AppWindow) {
         });
     }
 
-    // Clear History
+    // 3. Clear History
     {
         let history = history_model.clone();
         ui.on_clear_history(move || {
@@ -85,7 +174,7 @@ pub fn setup_callbacks(ui: &AppWindow) {
         });
     }
 
-    // Select History Entry (inserts expression or result at end and places cursor there)
+    // 4. Select History Entry
     {
         let ui_handle = ui.as_weak();
         ui.on_select_history_item(move |val| {
@@ -99,7 +188,121 @@ pub fn setup_callbacks(ui: &AppWindow) {
         });
     }
 
-    // Main Keypad Handler (Caret-aware insertion & deletion)
+    // 5. Open Separate Skin & Theme Selection Window
+    {
+        let dialog_handle = dialog.as_weak();
+        ui.on_open_skin_dialog(move || {
+            if let Some(dlg) = dialog_handle.upgrade() {
+                if let Err(e) = dlg.show() {
+                    eprintln!("Failed to show Appearance & Themes dialog: {e:?}");
+                }
+                dlg.window().request_redraw();
+            }
+        });
+    }
+
+    // 5b. Close / Hide Main Window (triggered by close button or Casio SHIFT+AC OFF)
+    {
+        let ui_handle = ui.as_weak();
+        ui.on_close_window(move || {
+            if let Some(ui) = ui_handle.upgrade() {
+                let _ = ui.window().hide();
+            }
+        });
+    }
+
+    // 5c. Open Skins Folder in user file manager
+    {
+        ui.on_open_skins_folder(move || {
+            if let Some(cfg_dir) = crate::storage::app_config_dir() {
+                let skins_dir = cfg_dir.join("skins");
+                let _ = std::fs::create_dir_all(&skins_dir);
+                let _ = std::process::Command::new("xdg-open")
+                    .arg(&skins_dir)
+                    .spawn();
+            }
+        });
+    }
+
+    // 5d. Reload skins when user clicks "Check Again"
+    {
+        let ui_handle = ui.as_weak();
+        let dialog_handle = dialog.as_weak();
+        ui.on_reload_skins(move || {
+            if let (Some(ui), Some(dlg)) = (ui_handle.upgrade(), dialog_handle.upgrade()) {
+                refresh_skins_state(&ui, &dlg);
+            }
+        });
+    }
+
+    // Ensure closing via window manager (X button) hides the dialog rather than destroying it
+    dialog.window().on_close_requested(move || {
+        slint::CloseRequestResponse::HideWindow
+    });
+
+    // 6. Apply Skin from Separate Window
+    {
+        let ui_handle = ui.as_weak();
+        let dialog_handle = dialog.as_weak();
+        dialog.on_apply_skin(move |skin_id, variant_id| {
+            if let Some(ui) = ui_handle.upgrade() {
+                let skin_str = skin_id.as_str();
+                let variant_str = variant_id.as_str();
+                ui.set_active_skin(skin_id.clone());
+                ui.set_active_variant(variant_id.clone());
+                if let Some(dlg) = dialog_handle.upgrade() {
+                    dlg.set_selected_skin(skin_id.clone());
+                    dlg.set_selected_variant(variant_id.clone());
+                }
+                let (w, h) = skin_window_size(skin_str, variant_str);
+                ui.set_custom_skin_w(w);
+                ui.set_custom_skin_h(h);
+                ui.window().set_size(slint::LogicalSize::new(w, h));
+                let mut settings = load_settings();
+                settings.active_skin = skin_str.to_string();
+                settings.active_variant = variant_str.to_string();
+                save_settings(&settings);
+            }
+        });
+    }
+
+    // 7. Close Separate Window
+    {
+        let dialog_handle = dialog.as_weak();
+        dialog.on_close_dialog(move || {
+            if let Some(dlg) = dialog_handle.upgrade() {
+                let _ = dlg.hide();
+            }
+        });
+    }
+
+    // 8. Quick Skin Switch Callbacks
+    {
+        let ui_handle = ui.as_weak();
+        let dialog_handle = dialog.as_weak();
+        ui.on_switch_skin(move |target_skin| {
+            if let Some(ui) = ui_handle.upgrade() {
+                let skin_str = target_skin.as_str();
+                let variant_str = "standard";
+                ui.set_active_skin(target_skin.clone());
+                ui.set_active_variant(variant_str.into());
+                if let Some(dlg) = dialog_handle.upgrade() {
+                    dlg.set_selected_skin(target_skin.clone());
+                    dlg.set_selected_variant(variant_str.into());
+                }
+                let (w, h) = skin_window_size(skin_str, variant_str);
+                ui.set_custom_skin_w(w);
+                ui.set_custom_skin_h(h);
+                ui.window().set_size(slint::LogicalSize::new(w, h));
+                let mut settings = load_settings();
+                settings.active_skin = skin_str.to_string();
+                settings.active_variant = variant_str.to_string();
+                save_settings(&settings);
+            }
+        });
+    }
+
+    // 10. Main Keypad & Button Handler
     {
         let ui_handle = ui.as_weak();
         let history = history_model;
@@ -197,8 +400,6 @@ pub fn setup_callbacks(ui: &AppWindow) {
             let is_digit_or_dot =
                 key_str.len() == 1 && key_str.chars().all(|c| c.is_ascii_digit() || c == '.');
 
-            // If user just pressed '=' and caret is still at the end, typing a new number starts fresh;
-            // if user moved the caret inside the result, insert at the custom caret position!
             let (mut before_str, after_str) = if just_eval
                 && cursor == expr.len()
                 && (is_digit_or_dot || key_str.ends_with('(') || key_str == "π" || key_str == "e")

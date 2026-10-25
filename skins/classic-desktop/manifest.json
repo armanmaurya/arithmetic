@@ -1,0 +1,17 @@
+{
+  "id": "classic-desktop",
+  "name": "Classic Desktop",
+  "version": "1.0.0",
+  "author": "Arithmetic Team",
+  "description": "Nostalgic desktop calculator layout with 3D beveled buttons and tactile LCD display",
+  "default_variant": "standard",
+  "variants": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 350.0,
+      "height": 420.0
+    }
+  ]
+}

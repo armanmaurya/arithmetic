@@ -1,6 +1,7 @@
 # Rust build artifacts
 /target/
 /libs/
+/.data/
 **/*.rs.bk
 
 # Package outputs created during local packaging tests

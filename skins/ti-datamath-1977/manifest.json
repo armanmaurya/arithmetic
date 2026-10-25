@@ -1,0 +1,17 @@
+{
+  "id": "ti-datamath-1977",
+  "name": "TI-30 Datamath (1977)",
+  "version": "1.0.0",
+  "author": "Texas Instruments",
+  "description": "Authentic 1977 vintage LED calculator with red 7-segment bubble display and textured metallic chassis",
+  "default_variant": "standard",
+  "variants": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 380.0,
+      "height": 640.0
+    }
+  ]
+}

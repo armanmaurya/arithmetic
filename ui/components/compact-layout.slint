@@ -1,0 +1,133 @@
+component CompactBtn inherits Rectangle {
+    in property <string> label;
+    in property <color> bg: #26272E;
+    in property <color> fg: #FFFFFF;
+    callback clicked <=> touch.clicked;
+
+    border-radius: 8px;
+    background: touch.pressed ? root.bg.darker(20%) : (touch.has-hover ? root.bg.brighter(15%) : root.bg);
+
+    animate background { duration: 120ms; }
+
+    Text {
+        text: root.label;
+        color: root.fg;
+        font-size: 15px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+export component CompactLayout inherits Rectangle {
+    in property <string> expression: "";
+    in property <string> preview-result: "";
+    in property <bool> is-error: false;
+    in property <bool> use-radians: false;
+
+    callback press-key(string);
+    callback toggle-angle-unit();
+    callback open-skin-dialog();
+    callback close-window();
+
+    background: #131316;
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 8px;
+
+        // Top Row: Angle Badge, Expression & Live Preview, Skin Switcher
+        HorizontalLayout {
+            spacing: 8px;
+            height: 38px;
+
+            Rectangle {
+                width: 52px;
+                background: #1E1F25;
+                border-radius: 8px;
+                Text {
+                    text: root.use-radians ? "RAD" : "DEG";
+                    color: #B4C5FF;
+                    font-size: 12px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.toggle-angle-unit(); }
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: #1E1F25;
+                border-radius: 8px;
+                clip: true;
+
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    spacing: 8px;
+                    alignment: end;
+
+                    Text {
+                        text: root.expression == "" ? "0" : root.expression;
+                        color: #E4E2E6;
+                        font-size: 18px;
+                        font-weight: 500;
+                        vertical-alignment: center;
+                        horizontal-alignment: end;
+                    }
+
+                    if root.preview-result != "": Text {
+                        text: "= " + root.preview-result;
+                        color: root.is-error ? #FFB4AB : #B4C5FF;
+                        font-size: 18px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // Skin Dialog Button
+            Rectangle {
+                width: 76px;
+                background: #1E1F25;
+                border-radius: 8px;
+                Text {
+                    text: "🎨 Theme";
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #B4C5FF;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.open-skin-dialog(); }
+                }
+            }
+        }
+
+        // Bottom Row: Compact Quick Buttons
+        HorizontalLayout {
+            spacing: 6px;
+            vertical-stretch: 1;
+
+            CompactBtn { label: "AC"; bg: #573E5B; fg: #FBD7FC; clicked => { root.press-key("AC"); } }
+            CompactBtn { label: "⌫"; bg: #2A2B32; fg: #E4E2E6; clicked => { root.press-key("BACKSPACE"); } }
+            CompactBtn { label: "( )"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("()"); } }
+            CompactBtn { label: "%"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("%"); } }
+            CompactBtn { label: "÷"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("÷"); } }
+            CompactBtn { label: "×"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("×"); } }
+            CompactBtn { label: "−"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("−"); } }
+            CompactBtn { label: "+"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("+"); } }
+            CompactBtn { label: "="; bg: #B4C5FF; fg: #002A78; clicked => { root.press-key("="); } }
+        }
+    }
+}

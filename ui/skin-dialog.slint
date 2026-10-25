@@ -1,0 +1,229 @@
+import { M3Theme } from "theme.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export struct SkinVariantEntry {
+    id: string,
+    name: string,
+    width: float,
+    height: float,
+}
+
+export struct SkinModelEntry {
+    id: string,
+    name: string,
+    description: string,
+    author: string,
+    has-variants: bool,
+    active-variant: string,
+    variants: [SkinVariantEntry],
+}
+
+// Material 3 Filter Chip for Layout Variants
+component M3FilterChip inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected: false;
+    callback clicked <=> touch.clicked;
+
+    height: 32px;
+    border-radius: 8px;
+    border-width: root.selected ? 0px : 1px;
+    border-color: M3Theme.outline;
+    background: root.selected ? M3Theme.secondary-container :
+                (touch.has-hover ? M3Theme.surface-container-high : transparent);
+
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 6px;
+        alignment: center;
+
+        if root.selected: Text {
+            text: "✓";
+            font-size: 12px;
+            font-weight: 700;
+            color: M3Theme.on-secondary-container;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.label;
+            font-size: 12px;
+            font-weight: root.selected ? 600 : 500;
+            color: root.selected ? M3Theme.on-secondary-container : M3Theme.on-surface-variant;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component SkinDialog inherits Window {
+    title: "Skins & Layouts";
+    icon: @image-url("../packaging/arithmetic-48.png");
+    min-width: 360px;
+    min-height: 400px;
+    preferred-width: 410px;
+    preferred-height: 480px;
+    background: M3Theme.surface-container-high;
+
+    in-out property <[SkinModelEntry]> available-skins: [];
+    in-out property <string> selected-skin: "material-3";
+    in-out property <string> selected-variant: "standard";
+
+    callback apply-skin(string, string);
+    callback close-dialog();
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 16px;
+
+        // Header Section
+        HorizontalLayout {
+            alignment: start;
+
+            Text {
+                text: "Skins & Layouts";
+                font-size: 22px;
+                font-weight: 500;
+                color: M3Theme.on-surface;
+            }
+        }
+
+        // Scrollable M3 Cards for Discovered Themes
+        ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                spacing: 8px;
+                padding-right: 6px;
+
+                for skin in root.available-skins: card := Rectangle {
+                    property <bool> is-selected: root.selected-skin == skin.id;
+
+                    border-radius: 16px;
+                    border-width: card.is-selected ? 2px : 1px;
+                    border-color: card.is-selected ? M3Theme.primary :
+                                  (card-touch.has-hover ? M3Theme.outline : M3Theme.outline-variant.with-alpha(0.5));
+                    background: card.is-selected ? M3Theme.primary-container.with-alpha(0.28) :
+                                (card-touch.has-hover ? M3Theme.surface-container-high : M3Theme.surface-container);
+
+                    animate background, border-color { duration: 150ms; }
+
+                    card-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.selected-skin = skin.id;
+                            root.apply-skin(skin.id, root.selected-variant);
+                        }
+                    }
+
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+
+                        HorizontalLayout {
+                            spacing: 14px;
+                            alignment: start;
+
+                            // M3 Avatar / Tonal Icon Badge
+                            Rectangle {
+                                width: 40px;
+                                height: 40px;
+                                border-radius: 20px;
+                                background: card.is-selected ? M3Theme.primary : M3Theme.surface-container-high;
+                                animate background { duration: 150ms; }
+
+                                Text {
+                                    text: skin.id == "material-3" ? "✦" :
+                                          (skin.id == "casio-fx991ms" || skin.id == "casio-scientific" ? "fx" :
+                                          (skin.id == "ti-datamath-1977" ? "TI" :
+                                          (skin.id == "braun-et66" ? "ET" : "⌨")));
+                                    font-size: 15px;
+                                    font-weight: 700;
+                                    color: card.is-selected ? M3Theme.on-primary : M3Theme.on-surface-variant;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            // Theme Name & Description
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                alignment: center;
+                                spacing: 2px;
+
+                                Text {
+                                    text: skin.name;
+                                    font-size: 15px;
+                                    font-weight: 600;
+                                    color: M3Theme.on-surface;
+                                }
+
+                                if skin.description != "": Text {
+                                    text: skin.description;
+                                    font-size: 12px;
+                                    font-weight: 400;
+                                    color: M3Theme.on-surface-variant;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
+
+                        // M3 Filter Chips for Theme Variants
+                        if skin.has-variants && card.is-selected: HorizontalLayout {
+                            padding-left: 54px;
+                            spacing: 8px;
+                            alignment: start;
+
+                            for variant in skin.variants: M3FilterChip {
+                                label: variant.name;
+                                selected: root.selected-variant == variant.id;
+                                clicked => {
+                                    root.selected-variant = variant.id;
+                                    root.apply-skin(skin.id, variant.id);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bottom Action Row (M3 Filled Button)
+        HorizontalLayout {
+            alignment: end;
+            padding-top: 4px;
+
+            Rectangle {
+                width: 104px;
+                height: 40px;
+                border-radius: 20px;
+                background: done-touch.pressed ? M3Theme.primary.darker(15%) :
+                            (done-touch.has-hover ? M3Theme.primary.brighter(10%) : M3Theme.primary);
+                animate background { duration: 120ms; }
+
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 6px;
+
+                    Text {
+                        text: "Done";
+                        font-size: 14px;
+                        font-weight: 600;
+                        color: M3Theme.on-primary;
+                        vertical-alignment: center;
+                    }
+                }
+
+                done-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.close-dialog(); }
+                }
+            }
+        }
+    }
+}

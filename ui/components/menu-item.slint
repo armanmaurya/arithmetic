@@ -26,10 +26,11 @@ export component MenuItem inherits Rectangle {
 
 export component RadioRow inherits Rectangle {
     in property <string> label;
+    in property <string> description: "";
     in property <bool> selected: false;
     callback clicked <=> touch.clicked;
 
-    height: 48px;
+    height: root.description != "" ? 56px : 44px;
     border-radius: 12px;
     background: touch.has-hover ? M3Theme.on-surface.with-alpha(0.06) : transparent;
 
@@ -65,11 +66,23 @@ export component RadioRow inherits Rectangle {
             }
         }
 
-        Text {
-            text: root.label;
-            font-size: 16px;
-            color: M3Theme.on-surface;
-            vertical-alignment: center;
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+
+            Text {
+                text: root.label;
+                font-size: 15px;
+                font-weight: 500;
+                color: M3Theme.on-surface;
+            }
+
+            if root.description != "": Text {
+                text: root.description;
+                font-size: 11px;
+                color: M3Theme.on-surface-variant;
+                overflow: elide;
+            }
         }
     }
 

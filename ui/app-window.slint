@@ -3,32 +3,73 @@ import { PortraitScientificDrawer, LandscapeScientificPanel } from "components/s
 import { NumpadGrid } from "components/numpad-grid.slint";
 import { DisplayHistoryPanel } from "components/display-panel.slint";
 import { OverflowMenu, ModalsOverlay } from "components/overlays.slint";
+import { ClassicLayout } from "components/classic-layout.slint";
+import { CompactLayout } from "components/compact-layout.slint";
+import { CasioLayout } from "components/casio-layout.slint";
+import { TIDatamathLayout } from "components/ti-datamath-layout.slint";
+import { BraunET66Layout } from "components/braun-et66-layout.slint";
+import { SkinDialog, SkinModelEntry, SkinVariantEntry } from "skin-dialog.slint";
 
-export { M3Theme, HistoryEntry }
+export { M3Theme, HistoryEntry, SkinDialog, SkinModelEntry, SkinVariantEntry }
 
 export component AppWindow inherits Window {
-    title: "Arithmetic";
-    icon: @image-url("../packaging/arithmetic.svg");
-    preferred-width: 412px;
-    preferred-height: 800px;
-    min-width: 360px;
-    min-height: 620px;
-    background: M3Theme.surface;
+    title: !root.has-skins ? "Arithmetic - No Skin Installed" :
+          (root.active-skin == "classic-desktop" ? "Classic Calculator" :
+          (root.active-skin == "compact-bar" || (root.active-skin == "material-3" && root.active-variant == "compact") ? "Arithmetic Compact" :
+          (root.active-skin == "material-3" && root.active-variant == "large" ? "Arithmetic Large" :
+          (root.active-skin == "casio-fx991ms" ? "Casio fx-991MS" :
+          (root.active-skin == "ti-datamath-1977" ? "TI-30 Datamath (1977)" :
+          (root.active-skin == "braun-et66" ? "Braun ET66" : "Arithmetic"))))));
+    icon: @image-url("../packaging/arithmetic-48.png");
 
-    // Responsive Layout State: switches to Horizontal/Landscape layout when width >= 640px
-    property <bool> is-landscape: self.width >= 640px;
+    // Dynamic Skin Switching & Dimensions
+    in-out property <bool> has-skins: false;
+    callback open-skins-folder();
+    callback reload-skins();
 
-    // Responsive collapsed display height: scales proportionally with window height so keypad buttons
-    // remain tall and well-proportioned even at minimum window height
+    in-out property <string> active-skin: "";
+    in-out property <string> active-variant: "";
+    in-out property <string> pending-skin: "";
+    in-out property <length> custom-skin-w: 0px;
+    in-out property <length> custom-skin-h: 0px;
+
+    // Fixed non-resizable dimensions per layout skin and variant
+    property <length> skin-w: !has-skins ? 460px :
+                             (custom-skin-w > 0px ? custom-skin-w :
+                             ((active-skin == "compact-bar" || (active-skin == "material-3" && active-variant == "compact")) ? 480px :
+                             ((active-skin == "material-3" && active-variant == "large") ? 780px :
+                             (active-skin == "classic-desktop" ? 350px :
+                             (active-skin == "casio-fx991ms" ? 396px :
+                             (active-skin == "ti-datamath-1977" ? 380px :
+                             (active-skin == "braun-et66" ? 390px : 412px)))))));
+    property <length> skin-h: !has-skins ? 340px :
+                             (custom-skin-h > 0px ? custom-skin-h :
+                             ((active-skin == "compact-bar" || (active-skin == "material-3" && active-variant == "compact")) ? 124px :
+                             ((active-skin == "material-3" && active-variant == "large") ? 500px :
+                             (active-skin == "classic-desktop" ? 420px :
+                             (active-skin == "casio-fx991ms" ? 784px :
+                             (active-skin == "ti-datamath-1977" ? 640px :
+                             (active-skin == "braun-et66" ? 640px : 780px)))))));
+
+    min-width: skin-w;
+    max-width: skin-w;
+    min-height: skin-h;
+    max-height: skin-h;
+    preferred-width: skin-w;
+    preferred-height: skin-h;
+
+    no-frame: true;
+    background: transparent;
+
+    // Responsive collapsed display height for Material 3
     property <length> display-collapsed-h: self.is-landscape
-        ? clamp(self.height * 0.28, 184px, 210px)
-        : (self.scientific-expanded
-            ? clamp(self.height * 0.27, 184px, 225px)
-            : clamp(self.height * 0.32, 205px, 265px));
+        ? 150px
+        : (self.scientific-expanded ? 195px : 220px);
 
     property <length> sci-drawer-h: self.is-landscape
         ? 0px
         : (self.scientific-expanded ? 132px : 48px);
+    property <bool> is-landscape: self.width >= 640px;
 
     // Calculator Core State
     in-out property <string> expression: "";
@@ -45,10 +86,9 @@ export component AppWindow inherits Window {
     in-out property <bool> scientific-expanded: false;
 
     // Screens, Menus & Modals State
-    // 0 = None, 1 = Main 3-dot Menu, 2 = History 3-dot Menu
     in-out property <int> active-menu: 0;
     in-out property <int> last-menu-type: 1;
-    // 0 = None, 1 = Choose Theme Dialog, 2 = Clear History Dialog
+    // 0 = None, 1 = Choose Theme Dialog, 2 = Clear History Dialog, 3 = Choose Skin Dialog
     in-out property <int> active-modal: 0;
     in-out property <int> pending-theme-mode: 2;
     in-out property <bool> history-expanded: false;
@@ -58,16 +98,27 @@ export component AppWindow inherits Window {
     // History Model
     in-out property <[HistoryEntry]> history: [];
 
-    // Rust Callbacks
+    // Callbacks
     callback press-key(string);
     callback expression-edited();
     callback toggle-angle-unit();
     callback clear-history();
     callback select-history-item(string);
+    callback switch-skin(string);
+    callback open-skin-dialog();
+    callback close-window();
 
     // Physical Keyboard Handler
     key-handler := FocusScope {
         key-pressed(event) => {
+            if (!root.has-skins) {
+                if (event.text == Key.Escape) {
+                    root.close-window();
+                    return accept;
+                }
+                return reject;
+            }
+
             if (root.active-modal != 0) {
                 if (event.text == Key.Escape) {
                     root.active-modal = 0;
@@ -99,134 +150,386 @@ export component AppWindow inherits Window {
                 return accept;
             }
             if (event.text == Key.Escape || event.text == "c" || event.text == "C") {
+                if (root.history-expanded) {
+                    root.history-expanded = false;
+                    return accept;
+                }
                 root.press-key("AC");
+                return accept;
+            }
+            if (event.text == "t" || event.text == "T" || event.text == Key.F2) {
+                root.open-skin-dialog();
                 return accept;
             }
             return reject;
         }
     }
 
-    // Root Surface
-    Rectangle {
+    main-layout := Rectangle {
         width: 100%;
         height: 100%;
-        background: M3Theme.surface;
-        animate background { duration: 250ms; }
 
-        // 1A. PORTRAIT SCIENTIFIC DRAWER (Visible when width < 640px)
-        PortraitScientificDrawer {
-            x: 0px;
-            y: root.display-collapsed-h;
-            width: parent.width;
-            height: root.sci-drawer-h;
-            opacity: root.is-landscape ? 0.0 : 1.0;
-            use-radians: root.use-radians;
-            inv-mode <=> root.inv-mode;
-            scientific-expanded <=> root.scientific-expanded;
-            press-key(k) => { root.press-key(k); }
-            toggle-angle-unit => { root.toggle-angle-unit(); }
+        // ==========================================
+        // NO SKIN INSTALLED VIEW
+        // ==========================================
+        if !root.has-skins: Rectangle {
+            width: 100%;
+            height: 100%;
+            background: M3Theme.surface;
+            border-radius: 16px;
+            border-width: 1px;
+            border-color: M3Theme.outline-variant;
+            clip: true;
 
-            animate y, height, opacity {
-                duration: 240ms;
-                easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+            // Window Header
+            Rectangle {
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                height: 48px;
+                background: M3Theme.surface-container;
+
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 12px;
+                    alignment: space-between;
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: start;
+
+                        Image {
+                            source: @image-url("../packaging/arithmetic-48.png");
+                            width: 22px;
+                            height: 22px;
+                            y: (parent.height - self.height) / 2;
+                        }
+
+                        Text {
+                            text: "Arithmetic";
+                            font-size: 14px;
+                            font-weight: 600;
+                            color: M3Theme.on-surface;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    // Close Button
+                    Rectangle {
+                        width: 28px;
+                        height: 28px;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: 14px;
+                        background: close-touch.has-hover ? M3Theme.surface-container-high : transparent;
+
+                        close-touch := TouchArea {
+                            clicked => { root.close-window(); }
+                        }
+
+                        Text {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            text: "✕";
+                            font-size: 13px;
+                            color: M3Theme.on-surface-variant;
+                        }
+                    }
+                }
+            }
+
+            // Body Content
+            VerticalLayout {
+                y: 48px;
+                width: 100%;
+                height: parent.height - 48px;
+                alignment: center;
+                spacing: 14px;
+                padding-left: 24px;
+                padding-right: 24px;
+                padding-bottom: 20px;
+
+                Text {
+                    text: "No Skin Installed";
+                    font-size: 19px;
+                    font-weight: 700;
+                    color: M3Theme.on-surface;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: "Arithmetic requires a skin to display the calculator.\nPlease place skin folders into:\n~/.config/arithmetic/skins/";
+                    font-size: 13px;
+                    color: M3Theme.on-surface-variant;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+
+                // Action Buttons
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 12px;
+                    padding-top: 10px;
+
+                    // Open Skins Folder button
+                    Rectangle {
+                        width: 160px;
+                        height: 38px;
+                        border-radius: 19px;
+                        background: open-touch.pressed ? M3Theme.primary.darker(10%) : (open-touch.has-hover ? M3Theme.primary.brighter(10%) : M3Theme.primary);
+
+                        open-touch := TouchArea {
+                            clicked => { root.open-skins-folder(); }
+                        }
+
+                        Text {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            text: "Open Skins Folder";
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: M3Theme.on-primary;
+                        }
+                    }
+
+                    // Reload button
+                    Rectangle {
+                        width: 130px;
+                        height: 38px;
+                        border-radius: 19px;
+                        background: reload-touch.pressed ? M3Theme.surface-container-high.darker(10%) : (reload-touch.has-hover ? M3Theme.surface-container-high.brighter(10%) : M3Theme.surface-container);
+                        border-width: 1px;
+                        border-color: M3Theme.outline-variant;
+
+                        reload-touch := TouchArea {
+                            clicked => { root.reload-skins(); }
+                        }
+
+                        Text {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            text: "Check Again";
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: M3Theme.on-surface;
+                        }
+                    }
+                }
             }
         }
 
-        // 2. RESPONSIVE KEYPAD AREA
-        //    Left: 3x4 Scientific Panel (Slides/Expands in Landscape >= 640px)
-        //    Right: 4x5 Main Numpad & Operators Grid
+        // ==========================================
+        // LAYOUT 1: Material 3 (Modern Responsive)
+        // ==========================================
         Rectangle {
-            x: 0px;
-            y: root.display-collapsed-h + root.sci-drawer-h;
-            width: parent.width;
-            height: max(0px, parent.height - self.y);
-            background: transparent;
+            width: 100%;
+            height: 100%;
+            visible: root.has-skins && root.active-skin == "material-3" && root.active-variant != "compact";
 
-            animate y, height {
-                duration: 240ms;
-                easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
-            }
-
-            property <length> sci-panel-w: root.is-landscape ? (self.width - 32px) * 0.41 : 0px;
-            animate sci-panel-w {
-                duration: 260ms;
-                easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
-            }
-
-            // 1B. LANDSCAPE LEFT SCIENTIFIC PANEL (3 columns x 4 rows)
-            LandscapeScientificPanel {
-                x: 16px;
-                y: root.is-landscape ? 12px : 4px;
-                width: parent.sci-panel-w;
-                height: max(0px, parent.height - self.y - 16px);
-                opacity: root.is-landscape ? 1.0 : 0.0;
-                visible: self.width > 1px;
+            // 1. PORTRAIT TOP COLLAPSIBLE SCIENTIFIC DRAWER
+            PortraitScientificDrawer {
+                x: 0px;
+                y: root.display-collapsed-h;
+                width: parent.width;
+                height: root.sci-drawer-h;
+                opacity: root.is-landscape ? 0.0 : 1.0;
+                visible: !root.is-landscape;
                 use-radians: root.use-radians;
                 inv-mode <=> root.inv-mode;
+                scientific-expanded <=> root.scientific-expanded;
                 press-key(k) => { root.press-key(k); }
                 toggle-angle-unit => { root.toggle-angle-unit(); }
 
-                animate opacity {
+                animate y, height, opacity {
                     duration: 240ms;
                     easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
                 }
             }
 
-            // MAIN 4x5 NUMPAD & OPERATORS GRID
-            NumpadGrid {
-                x: 16px + parent.sci-panel-w;
-                y: root.is-landscape ? 12px : 4px;
-                width: max(0px, parent.width - 32px - parent.sci-panel-w);
-                height: max(0px, parent.height - self.y - 16px);
-                is-landscape: root.is-landscape;
+            // 2. RESPONSIVE KEYPAD AREA
+            Rectangle {
+                x: 0px;
+                y: root.display-collapsed-h + root.sci-drawer-h;
+                width: parent.width;
+                height: max(0px, parent.height - self.y);
+                background: transparent;
+
+                animate y, height {
+                    duration: 240ms;
+                    easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+                }
+
+                property <length> sci-panel-w: root.is-landscape ? (self.width - 32px) * 0.41 : 0px;
+                animate sci-panel-w {
+                    duration: 260ms;
+                    easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+                }
+
+                // Landscape Left Scientific Panel
+                LandscapeScientificPanel {
+                    x: 16px;
+                    y: root.is-landscape ? 12px : 4px;
+                    width: parent.sci-panel-w;
+                    height: max(0px, parent.height - self.y - 16px);
+                    opacity: root.is-landscape ? 1.0 : 0.0;
+                    visible: self.width > 1px;
+                    use-radians: root.use-radians;
+                    inv-mode <=> root.inv-mode;
+                    press-key(k) => { root.press-key(k); }
+                    toggle-angle-unit => { root.toggle-angle-unit(); }
+
+                    animate opacity {
+                        duration: 240ms;
+                        easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+                    }
+                }
+
+                // Main 4x5 Numpad Grid
+                NumpadGrid {
+                    x: 16px + parent.sci-panel-w;
+                    y: root.is-landscape ? 12px : 4px;
+                    width: max(0px, parent.width - 32px - parent.sci-panel-w);
+                    height: max(0px, parent.height - self.y - 16px);
+                    is-landscape: root.is-landscape;
+                    press-key(k) => { root.press-key(k); }
+                }
+            }
+
+            // 3. UNIFIED DISPLAY & PULL-DOWN HISTORY CONTAINER
+            display-panel := DisplayHistoryPanel {
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                property <length> collapsed-h: root.display-collapsed-h;
+                height: root.history-expanded
+                    ? clamp(parent.height + root.drag-offset-y, self.collapsed-h, parent.height)
+                    : clamp(self.collapsed-h + root.drag-offset-y, self.collapsed-h, parent.height);
+                expression <=> root.expression;
+                cursor-byte-offset <=> root.cursor-byte-offset;
+                preview-result: root.preview-result;
+                is-error: root.is-error;
+                use-radians: root.use-radians;
+                history-expanded <=> root.history-expanded;
+                drag-offset-y <=> root.drag-offset-y;
+                expr-scroll-offset <=> root.expr-scroll-offset;
+                history: root.history;
+
                 press-key(k) => { root.press-key(k); }
+                expression-edited => { root.expression-edited(); }
+                toggle-angle-unit => { root.toggle-angle-unit(); }
+                select-history-item(val) => { root.select-history-item(val); }
+                open-overflow-menu => {
+                    root.last-menu-type = root.history-expanded ? 2 : 1;
+                    root.active-menu = root.history-expanded ? 2 : 1;
+                }
+                open-skin-dialog => {
+                    root.open-skin-dialog();
+                }
             }
         }
 
-        // 3. UNIFIED DISPLAY & PULL-DOWN HISTORY CONTAINER (Overlaying Top)
-        display-panel := DisplayHistoryPanel {
-            x: 0px;
-            y: 0px;
+        // ==========================================
+        // LAYOUT 2: Classic Desktop (Retro 90s)
+        // ==========================================
+        if root.has-skins && root.active-skin == "classic-desktop": ClassicLayout {
             width: 100%;
-            property <length> collapsed-h: root.display-collapsed-h;
-            height: root.history-expanded
-                ? clamp(parent.height + root.drag-offset-y, self.collapsed-h, parent.height)
-                : clamp(self.collapsed-h + root.drag-offset-y, self.collapsed-h, parent.height);
-            expression <=> root.expression;
-            cursor-byte-offset <=> root.cursor-byte-offset;
+            height: 100%;
+            expression: root.expression;
             preview-result: root.preview-result;
             is-error: root.is-error;
             use-radians: root.use-radians;
-            history-expanded <=> root.history-expanded;
-            drag-offset-y <=> root.drag-offset-y;
-            expr-scroll-offset <=> root.expr-scroll-offset;
-            history: root.history;
-
             press-key(k) => { root.press-key(k); }
-            expression-edited => { root.expression-edited(); }
             toggle-angle-unit => { root.toggle-angle-unit(); }
-            select-history-item(val) => { root.select-history-item(val); }
-            open-overflow-menu => {
-                root.last-menu-type = root.history-expanded ? 2 : 1;
-                root.active-menu = root.history-expanded ? 2 : 1;
-            }
+            open-skin-dialog => { root.open-skin-dialog(); }
+            close-window => { root.close-window(); }
         }
 
-        // 4. OVERFLOW 3-DOT FLOATING MENU
-        OverflowMenu {
+        // ==========================================
+        // LAYOUT 3: Compact Bar (Hyprland HUD)
+        // ==========================================
+        if root.has-skins && (root.active-skin == "compact-bar" || (root.active-skin == "material-3" && root.active-variant == "compact")): CompactLayout {
+            width: 100%;
+            height: 100%;
+            expression: root.expression;
+            preview-result: root.preview-result;
+            is-error: root.is-error;
+            use-radians: root.use-radians;
+            press-key(k) => { root.press-key(k); }
+            toggle-angle-unit => { root.toggle-angle-unit(); }
+            open-skin-dialog => { root.open-skin-dialog(); }
+            close-window => { root.close-window(); }
+        }
+
+        // ==========================================
+        // LAYOUT 4: Casio fx-991MS S-V.P.A.M.
+        // ==========================================
+        if root.has-skins && (root.active-skin == "casio-scientific" || root.active-skin == "casio-fx991ms"): CasioLayout {
+            width: 100%;
+            height: 100%;
+            expression: root.expression;
+            preview-result: root.preview-result;
+            is-error: root.is-error;
+            use-radians: root.use-radians;
+            press-key(k) => { root.press-key(k); }
+            toggle-angle-unit => { root.toggle-angle-unit(); }
+            open-skin-dialog => { root.open-skin-dialog(); }
+            close-window => { root.close-window(); }
+        }
+
+        // ==========================================
+        // LAYOUT 5: Skeuomorphic TI-30 Datamath (1977)
+        // ==========================================
+        if root.has-skins && root.active-skin == "ti-datamath-1977": TIDatamathLayout {
+            width: 100%;
+            height: 100%;
+            expression: root.expression;
+            preview-result: root.preview-result;
+            is-error: root.is-error;
+            use-radians: root.use-radians;
+            press-key(k) => { root.press-key(k); }
+            toggle-angle-unit => { root.toggle-angle-unit(); }
+            open-skin-dialog => { root.open-skin-dialog(); }
+            close-window => { root.close-window(); }
+        }
+
+        // ==========================================
+        // LAYOUT 6: Skeuomorphic Braun ET66 (1987)
+        // ==========================================
+        if root.has-skins && root.active-skin == "braun-et66": BraunET66Layout {
+            width: 100%;
+            height: 100%;
+            expression: root.expression;
+            preview-result: root.preview-result;
+            is-error: root.is-error;
+            use-radians: root.use-radians;
+            press-key(k) => { root.press-key(k); }
+            toggle-angle-unit => { root.toggle-angle-unit(); }
+            open-skin-dialog => { root.open-skin-dialog(); }
+            close-window => { root.close-window(); }
+        }
+
+        // ==========================================
+        // OVERFLOW 3-DOT MENU & MODAL DIALOGS
+        // ==========================================
+        if root.has-skins: OverflowMenu {
             active-menu <=> root.active-menu;
             last-menu-type: root.last-menu-type;
             history-expanded <=> root.history-expanded;
             pending-theme-mode <=> root.pending-theme-mode;
             active-modal <=> root.active-modal;
+            active-skin <=> root.active-skin;
+            pending-skin <=> root.pending-skin;
+            switch-skin(id) => { root.switch-skin(id); }
+            open-skin-dialog => { root.open-skin-dialog(); }
         }
 
-        // 5. ANIMATED MODAL DIALOGS ("Choose theme" & "Clear")
-        ModalsOverlay {
+        if root.has-skins: ModalsOverlay {
             active-modal <=> root.active-modal;
             pending-theme-mode <=> root.pending-theme-mode;
             history-expanded <=> root.history-expanded;
+            active-skin <=> root.active-skin;
+            pending-skin <=> root.pending-skin;
             clear-history => { root.clear-history(); }
+            switch-skin(id) => { root.switch-skin(id); }
         }
     }
 }

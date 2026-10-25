@@ -7,6 +7,10 @@ export component OverflowMenu inherits Rectangle {
     in-out property <bool> history-expanded: false;
     in-out property <int> pending-theme-mode: 2;
     in-out property <int> active-modal: 0;
+    in-out property <string> active-skin: "material-3";
+    in-out property <string> pending-skin: "material-3";
+    callback switch-skin(string);
+    callback open-skin-dialog();
 
     width: 100%;
     height: 100%;
@@ -39,7 +43,7 @@ export component OverflowMenu inherits Rectangle {
 
         TouchArea {}
 
-        // Menu when on Main Calculator Screen ("History", "Choose theme")
+        // Menu when on Main Calculator Screen ("History", "Skin & Theme")
         VerticalLayout {
             visible: root.last-menu-type == 1;
             padding-top: 8px;
@@ -53,11 +57,10 @@ export component OverflowMenu inherits Rectangle {
                 }
             }
             MenuItem {
-                label: "Choose theme";
+                label: "Skin & Theme";
                 clicked => {
                     root.active-menu = 0;
-                    root.pending-theme-mode = M3Theme.theme-mode;
-                    root.active-modal = 1;
+                    root.open-skin-dialog();
                 }
             }
         }
@@ -83,7 +86,10 @@ export component ModalsOverlay inherits Rectangle {
     in-out property <int> active-modal: 0;
     in-out property <int> pending-theme-mode: 2;
     in-out property <bool> history-expanded: false;
+    in-out property <string> active-skin: "material-3";
+    in-out property <string> pending-skin: "material-3";
     callback clear-history();
+    callback switch-skin(string);
 
     width: 100%;
     height: 100%;
@@ -277,6 +283,115 @@ export component ModalsOverlay inherits Rectangle {
                             root.clear-history();
                             root.active-modal = 0;
                             root.history-expanded = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MODAL 3: "Choose layout skin" Dialog
+    Rectangle {
+        width: 316px;
+        height: 380px;
+        x: (parent.width - self.width) / 2;
+        y: root.active-modal == 3
+            ? (parent.height - self.height) / 2
+            : (parent.height - self.height) / 2 + 28px;
+        opacity: root.active-modal == 3 ? 1.0 : 0.0;
+        visible: self.opacity > 0.01;
+        border-radius: 28px;
+        background: M3Theme.surface-container-high;
+        drop-shadow-blur: 24px;
+        drop-shadow-color: #00000070;
+
+        animate y, opacity {
+            duration: 240ms;
+            easing: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+        }
+
+        TouchArea {}
+
+        VerticalLayout {
+            padding: 24px;
+            spacing: 12px;
+            alignment: space-between;
+
+            Text {
+                text: "Choose layout skin";
+                font-size: 22px;
+                font-weight: 500;
+                color: M3Theme.on-surface;
+            }
+
+            VerticalLayout {
+                spacing: 2px;
+                RadioRow {
+                    label: "Material 3 (Modern)";
+                    selected: root.pending-skin == "material-3";
+                    clicked => { root.pending-skin = "material-3"; }
+                }
+                RadioRow {
+                    label: "Classic Desktop (Retro 90s)";
+                    selected: root.pending-skin == "classic-desktop";
+                    clicked => { root.pending-skin = "classic-desktop"; }
+                }
+                RadioRow {
+                    label: "Casio Scientific (Hardware)";
+                    selected: root.pending-skin == "casio-scientific";
+                    clicked => { root.pending-skin = "casio-scientific"; }
+                }
+                RadioRow {
+                    label: "Compact Bar (Hyprland HUD)";
+                    selected: root.pending-skin == "compact-bar";
+                    clicked => { root.pending-skin = "compact-bar"; }
+                }
+                RadioRow {
+                    label: "Cyberpunk Neon (Terminal)";
+                    selected: root.pending-skin == "cyberpunk-neon";
+                    clicked => { root.pending-skin = "cyberpunk-neon"; }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                spacing: 8px;
+
+                Rectangle {
+                    width: 72px;
+                    height: 40px;
+                    border-radius: 20px;
+                    Text {
+                        text: "Cancel";
+                        font-size: 14px;
+                        font-weight: 600;
+                        color: M3Theme.primary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.active-modal = 0; }
+                    }
+                }
+
+                Rectangle {
+                    width: 72px;
+                    height: 40px;
+                    border-radius: 20px;
+                    Text {
+                        text: "Apply";
+                        font-size: 14px;
+                        font-weight: 600;
+                        color: M3Theme.primary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.switch-skin(root.pending-skin);
+                            root.active-modal = 0;
                         }
                     }
                 }

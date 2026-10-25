@@ -1,0 +1,17 @@
+{
+  "id": "braun-et66",
+  "name": "Braun ET66",
+  "version": "1.0.0",
+  "author": "Dietrich Lubs & Dieter Rams",
+  "description": "Iconic 1987 Bauhaus-inspired minimalist calculator with convex circular keys and matte chassis",
+  "default_variant": "standard",
+  "variants": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 390.0,
+      "height": 640.0
+    }
+  ]
+}

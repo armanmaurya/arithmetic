@@ -1,0 +1,366 @@
+export struct HistoryEntry {
+    expression: string,
+    result: string,
+    timestamp: string,
+}
+
+component M3Btn inherits Rectangle {
+    in property <string> label;
+    in property <color> bg: #2B2930;
+    in property <color> fg: #E6E1E5;
+    in property <length> font-px: 20px;
+    in property <bool> bold: false;
+    callback clicked <=> touch.clicked;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+
+    border-radius: self.height / 2;
+    background: touch.pressed ? root.bg.darker(15%) : (touch.has-hover ? root.bg.brighter(15%) : root.bg);
+    animate background { duration: 150ms; }
+
+    Text {
+        text: root.label;
+        color: root.fg;
+        font-size: root.font-px;
+        font-weight: root.bold ? 700 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Arithmetic (Material 3 Large)";
+    preferred-width: 780px;
+    preferred-height: 500px;
+    min-width: 780px;
+    max-width: 780px;
+    min-height: 500px;
+    max-height: 500px;
+    background: #141218;
+
+    in-out property <string> expression: "";
+    in-out property <int> cursor-byte-offset: 0;
+    in-out property <string> preview-result: "";
+    in-out property <bool> is-error: false;
+    in-out property <bool> use-radians: false;
+    in-out property <bool> inv-mode: false;
+    in-out property <[HistoryEntry]> history: [];
+
+    callback press-key(string);
+    callback expression-edited();
+    callback toggle-angle-unit();
+    callback clear-history();
+    callback select-history-item(string);
+    callback switch-skin(string);
+    callback open-skin-dialog();
+
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) {
+                root.press-key("=");
+                return accept;
+            }
+            if (event.text == Key.Backspace) {
+                root.press-key("BACKSPACE");
+                return accept;
+            }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") {
+                root.press-key("AC");
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    VerticalLayout {
+        padding: 16px;
+        spacing: 12px;
+
+        // Display Surface Container
+        Rectangle {
+            height: 130px;
+            border-radius: 20px;
+            background: #1D1B20;
+            clip: true;
+
+            VerticalLayout {
+                padding-left: 20px;
+                padding-right: 20px;
+                padding-top: 10px;
+                padding-bottom: 12px;
+                alignment: space-between;
+
+                // Top Bar inside Display
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    // DEG / RAD Chip
+                    Rectangle {
+                        width: 64px;
+                        height: 30px;
+                        border-radius: 8px;
+                        background: #2B2930;
+                        Text {
+                            text: root.use-radians ? "RAD" : "DEG";
+                            color: #D0BCFF;
+                            font-size: 13px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.toggle-angle-unit(); }
+                        }
+                    }
+
+                    // Skin Selector Palette Icon
+                    Rectangle {
+                        width: 36px;
+                        height: 36px;
+                        border-radius: 18px;
+                        background: palette-touch.has-hover ? #E6E1E515 : transparent;
+                        Text {
+                            text: "🎨";
+                            font-size: 16px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        palette-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.open-skin-dialog(); }
+                        }
+                    }
+                }
+
+                // Expression and Live Preview Area
+                VerticalLayout {
+                    alignment: end;
+                    spacing: 2px;
+
+                    // Expression
+                    Text {
+                        text: root.expression == "" ? "0" : root.expression;
+                        font-size: 36px;
+                        font-weight: 400;
+                        color: #E6E1E5;
+                        horizontal-alignment: end;
+                    }
+
+                    // Live Preview / Result
+                    if root.preview-result != "": Text {
+                        text: "= " + root.preview-result;
+                        font-size: 24px;
+                        font-weight: 600;
+                        color: root.is-error ? #F2B8B5 : #D0BCFF;
+                        horizontal-alignment: end;
+                    }
+                }
+            }
+        }
+
+        // Two-Column Landscape Keypad: Scientific (Left) + Standard (Right)
+        HorizontalLayout {
+            spacing: 16px;
+            vertical-stretch: 1;
+
+            // Scientific Panel (3 Columns x 4 Rows)
+            VerticalLayout {
+                horizontal-stretch: 2;
+                spacing: 8px;
+
+                // Sci Row 1: RAD/DEG, √ / x², π
+                HorizontalLayout {
+                    spacing: 8px;
+                    vertical-stretch: 1;
+                    M3Btn {
+                        label: root.use-radians ? "DEG" : "RAD";
+                        bg: #2B2930;
+                        fg: #D0BCFF;
+                        font-px: 15px;
+                        bold: true;
+                        clicked => { root.toggle-angle-unit(); }
+                    }
+                    M3Btn {
+                        label: root.inv-mode ? "x²" : "√";
+                        bg: #2B2930;
+                        fg: #E6E1E5;
+                        font-px: 18px;
+                        clicked => { root.press-key(root.inv-mode ? "^2" : "√("); }
+                    }
+                    M3Btn {
+                        label: "π";
+                        bg: #2B2930;
+                        fg: #E6E1E5;
+                        font-px: 18px;
+                        clicked => { root.press-key("π"); }
+                    }
+                }
+
+                // Sci Row 2: INV, sin, cos
+                HorizontalLayout {
+                    spacing: 8px;
+                    vertical-stretch: 1;
+                    M3Btn {
+                        label: "INV";
+                        bg: root.inv-mode ? #D0BCFF : #2B2930;
+                        fg: root.inv-mode ? #381E72 : #E6E1E5;
+                        font-px: 15px;
+                        bold: true;
+                        clicked => { root.inv-mode = !root.inv-mode; }
+                    }
+                    M3Btn {
+                        label: root.inv-mode ? "sin⁻¹" : "sin";
+                        bg: #2B2930;
+                        fg: #E6E1E5;
+                        font-px: 16px;
+                        clicked => { root.press-key(root.inv-mode ? "sin⁻¹(" : "sin("); }
+                    }
+                    M3Btn {
+                        label: root.inv-mode ? "cos⁻¹" : "cos";
+                        bg: #2B2930;
+                        fg: #E6E1E5;
+                        font-px: 16px;
+                        clicked => { root.press-key(root.inv-mode ? "cos⁻¹(" : "cos("); }
+                    }
+                }
+
+                // Sci Row 3: e, tan, ln
+                HorizontalLayout {
+                    spacing: 8px;
+                    vertical-stretch: 1;
+                    M3Btn {
+                        label: "e";
+                        bg: #2B2930;
+                        fg: #E6E1E5;
+                        font-px: 18px;
+                        clicked => { root.press-key("e"); }
+                    }
+                    M3Btn {
+                        label: root.inv-mode ? "tan⁻¹" : "tan";
+                        bg: #2B2930;
+                        fg: #E6E1E5;
+                        font-px: 16px;
+                        clicked => { root.press-key(root.inv-mode ? "tan⁻¹(" : "tan("); }
+                    }
+                    M3Btn {
+                        label: root.inv-mode ? "eˣ" : "ln";
+                        bg: #2B2930;
+                        fg: #E6E1E5;
+                        font-px: 16px;
+                        clicked => { root.press-key(root.inv-mode ? "e^(" : "ln("); }
+                    }
+                }
+
+                // Sci Row 4: ^, !, log
+                HorizontalLayout {
+                    spacing: 8px;
+                    vertical-stretch: 1;
+                    M3Btn {
+                        label: "^";
+                        bg: #2B2930;
+                        fg: #E6E1E5;
+                        font-px: 18px;
+                        clicked => { root.press-key("^"); }
+                    }
+                    M3Btn {
+                        label: "!";
+                        bg: #2B2930;
+                        fg: #E6E1E5;
+                        font-px: 18px;
+                        clicked => { root.press-key("!"); }
+                    }
+                    M3Btn {
+                        label: root.inv-mode ? "10ˣ" : "log";
+                        bg: #2B2930;
+                        fg: #E6E1E5;
+                        font-px: 16px;
+                        clicked => { root.press-key(root.inv-mode ? "10^(" : "log("); }
+                    }
+                }
+            }
+
+            // Divider between Scientific and Standard Keypad
+            Rectangle {
+                width: 1px;
+                background: #49454F;
+                opacity: 0.4;
+            }
+
+            // Standard Numpad Grid (4 Columns x 5 Rows)
+            VerticalLayout {
+                horizontal-stretch: 3;
+                spacing: 8px;
+
+                // Numpad Row 1: AC, ( ), %, ÷
+                HorizontalLayout {
+                    spacing: 8px;
+                    vertical-stretch: 1;
+                    M3Btn { label: "AC"; bg: #4A4458; fg: #E8DEF8; font-px: 18px; bold: true; clicked => { root.press-key("AC"); } }
+                    M3Btn { label: "( )"; bg: #4A4458; fg: #E8DEF8; font-px: 18px; clicked => { root.press-key("()"); } }
+                    M3Btn { label: "%"; bg: #4A4458; fg: #E8DEF8; font-px: 18px; clicked => { root.press-key("%"); } }
+                    M3Btn { label: "÷"; bg: #D0BCFF; fg: #381E72; font-px: 24px; bold: true; clicked => { root.press-key("÷"); } }
+                }
+
+                // Numpad Row 2: 7, 8, 9, ×
+                HorizontalLayout {
+                    spacing: 8px;
+                    vertical-stretch: 1;
+                    M3Btn { label: "7"; clicked => { root.press-key("7"); } }
+                    M3Btn { label: "8"; clicked => { root.press-key("8"); } }
+                    M3Btn { label: "9"; clicked => { root.press-key("9"); } }
+                    M3Btn { label: "×"; bg: #D0BCFF; fg: #381E72; font-px: 24px; bold: true; clicked => { root.press-key("×"); } }
+                }
+
+                // Numpad Row 3: 4, 5, 6, −
+                HorizontalLayout {
+                    spacing: 8px;
+                    vertical-stretch: 1;
+                    M3Btn { label: "4"; clicked => { root.press-key("4"); } }
+                    M3Btn { label: "5"; clicked => { root.press-key("5"); } }
+                    M3Btn { label: "6"; clicked => { root.press-key("6"); } }
+                    M3Btn { label: "−"; bg: #D0BCFF; fg: #381E72; font-px: 24px; bold: true; clicked => { root.press-key("−"); } }
+                }
+
+                // Numpad Row 4: 1, 2, 3, +
+                HorizontalLayout {
+                    spacing: 8px;
+                    vertical-stretch: 1;
+                    M3Btn { label: "1"; clicked => { root.press-key("1"); } }
+                    M3Btn { label: "2"; clicked => { root.press-key("2"); } }
+                    M3Btn { label: "3"; clicked => { root.press-key("3"); } }
+                    M3Btn { label: "+"; bg: #D0BCFF; fg: #381E72; font-px: 24px; bold: true; clicked => { root.press-key("+"); } }
+                }
+
+                // Numpad Row 5: 0, ., ⌫, =
+                HorizontalLayout {
+                    spacing: 8px;
+                    vertical-stretch: 1;
+                    M3Btn { label: "0"; clicked => { root.press-key("0"); } }
+                    M3Btn { label: "."; clicked => { root.press-key("."); } }
+                    M3Btn { label: "⌫"; clicked => { root.press-key("BACKSPACE"); } }
+                    M3Btn { label: "="; bg: #D0BCFF; fg: #381E72; font-px: 26px; bold: true; clicked => { root.press-key("="); } }
+                }
+            }
+        }
+    }
+}

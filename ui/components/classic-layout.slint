@@ -1,0 +1,205 @@
+component RetroButton inherits Rectangle {
+    in property <string> label;
+    in property <color> text-color: #000000;
+    in property <length> font-px: 16px;
+    in property <bool> bold: false;
+    callback clicked <=> touch.clicked;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+
+    border-radius: 2px;
+    background: touch.pressed ? #BDB8AE : #D4D0C8;
+
+    // Bevel highlights & shadows
+    Rectangle {
+        x: 0; y: 0; width: 100%; height: 2px;
+        background: touch.pressed ? #404040 : #FFFFFF;
+    }
+    Rectangle {
+        x: 0; y: 0; width: 2px; height: 100%;
+        background: touch.pressed ? #404040 : #FFFFFF;
+    }
+    Rectangle {
+        x: 0; y: parent.height - 2px; width: 100%; height: 2px;
+        background: touch.pressed ? #FFFFFF : #404040;
+    }
+    Rectangle {
+        x: parent.width - 2px; y: 0; width: 2px; height: 100%;
+        background: touch.pressed ? #FFFFFF : #404040;
+    }
+
+    Text {
+        width: 100%;
+        height: 100%;
+        x: touch.pressed ? 1px : 0px;
+        y: touch.pressed ? 1px : 0px;
+        text: root.label;
+        color: root.text-color;
+        font-size: root.font-px;
+        font-weight: root.bold ? 700 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+export component ClassicLayout inherits Rectangle {
+    in property <string> expression: "";
+    in property <string> preview-result: "";
+    in property <bool> is-error: false;
+    in property <bool> use-radians: false;
+
+    callback press-key(string);
+    callback toggle-angle-unit();
+    callback open-skin-dialog();
+    callback close-window();
+
+    background: #ECE9D8;
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 8px;
+
+        // Top Status Bar
+        HorizontalLayout {
+            spacing: 6px;
+            height: 26px;
+
+            Rectangle {
+                width: 60px;
+                background: #D4D0C8;
+                border-radius: 2px;
+                border-width: 1px;
+                border-color: #808080;
+                Text {
+                    text: root.use-radians ? "RAD" : "DEG";
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: #000080;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.toggle-angle-unit(); }
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+
+            // Skin Dialog Button
+            Rectangle {
+                width: 76px;
+                background: #D4D0C8;
+                border-radius: 2px;
+                border-width: 1px;
+                border-color: #808080;
+                Text {
+                    text: "Themes ▾";
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #000000;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.open-skin-dialog(); }
+                }
+            }
+        }
+
+        // Vintage LCD Display Frame (Inset Bevel)
+        Rectangle {
+            height: 74px;
+            background: #D8E4D0;
+            border-radius: 2px;
+            clip: true;
+
+            Rectangle { x: 0; y: 0; width: 100%; height: 2px; background: #606060; }
+            Rectangle { x: 0; y: 0; width: 2px; height: 100%; background: #606060; }
+            Rectangle { x: 0; y: parent.height - 1px; width: 100%; height: 1px; background: #FFFFFF; }
+            Rectangle { x: parent.width - 1px; y: 0; width: 1px; height: 100%; background: #FFFFFF; }
+
+            VerticalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                padding-top: 4px;
+                padding-bottom: 4px;
+                alignment: space-between;
+
+                Text {
+                    text: root.expression == "" ? "0" : (root.preview-result != "" ? root.expression + " = " + root.preview-result : root.expression);
+                    font-size: 12px;
+                    color: root.is-error ? #800000 : #4B5A42;
+                    horizontal-alignment: end;
+                }
+
+                Text {
+                    text: root.expression == "" ? "0" : (root.is-error ? "Error" : root.expression);
+                    font-size: 26px;
+                    font-weight: 700;
+                    color: #1A2416;
+                    horizontal-alignment: end;
+                }
+            }
+        }
+
+        // Keypad Grid
+        VerticalLayout {
+            spacing: 5px;
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                spacing: 5px;
+                vertical-stretch: 1;
+                RetroButton { label: "AC"; text-color: #800000; bold: true; clicked => { root.press-key("AC"); } }
+                RetroButton { label: "⌫"; text-color: #000000; clicked => { root.press-key("BACKSPACE"); } }
+                RetroButton { label: "( )"; text-color: #000080; clicked => { root.press-key("()"); } }
+                RetroButton { label: "÷"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("÷"); } }
+            }
+
+            HorizontalLayout {
+                spacing: 5px;
+                vertical-stretch: 1;
+                RetroButton { label: "7"; bold: true; clicked => { root.press-key("7"); } }
+                RetroButton { label: "8"; bold: true; clicked => { root.press-key("8"); } }
+                RetroButton { label: "9"; bold: true; clicked => { root.press-key("9"); } }
+                RetroButton { label: "×"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("×"); } }
+            }
+
+            HorizontalLayout {
+                spacing: 5px;
+                vertical-stretch: 1;
+                RetroButton { label: "4"; bold: true; clicked => { root.press-key("4"); } }
+                RetroButton { label: "5"; bold: true; clicked => { root.press-key("5"); } }
+                RetroButton { label: "6"; bold: true; clicked => { root.press-key("6"); } }
+                RetroButton { label: "−"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("−"); } }
+            }
+
+            HorizontalLayout {
+                spacing: 5px;
+                vertical-stretch: 1;
+                RetroButton { label: "1"; bold: true; clicked => { root.press-key("1"); } }
+                RetroButton { label: "2"; bold: true; clicked => { root.press-key("2"); } }
+                RetroButton { label: "3"; bold: true; clicked => { root.press-key("3"); } }
+                RetroButton { label: "+"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("+"); } }
+            }
+
+            HorizontalLayout {
+                spacing: 5px;
+                vertical-stretch: 1;
+                RetroButton { label: "0"; bold: true; clicked => { root.press-key("0"); } }
+                RetroButton { label: "."; bold: true; font-px: 20px; clicked => { root.press-key("."); } }
+                RetroButton { label: "%"; text-color: #000080; clicked => { root.press-key("%"); } }
+                RetroButton { label: "="; text-color: #800000; font-px: 20px; bold: true; clicked => { root.press-key("="); } }
+            }
+        }
+    }
+}

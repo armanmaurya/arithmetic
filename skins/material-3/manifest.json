@@ -1,0 +1,31 @@
+{
+  "id": "material-3",
+  "name": "Material You",
+  "version": "1.0.0",
+  "author": "Google",
+  "description": "Adaptive Google Material Design 3 theme with Compact, Standard, and Large layouts",
+  "default_variant": "standard",
+  "variants": [
+    {
+      "id": "compact",
+      "name": "Compact",
+      "file": "compact.slint",
+      "width": 480.0,
+      "height": 124.0
+    },
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 412.0,
+      "height": 780.0
+    },
+    {
+      "id": "large",
+      "name": "Large",
+      "file": "large.slint",
+      "width": 780.0,
+      "height": 500.0
+    }
+  ]
+}
