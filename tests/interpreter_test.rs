@@ -1,6 +1,11 @@
-use arithmetic::engine::{evaluate_expression, format_number, pop_last_token};
+use arithmetic::core::editor::pop_last_token;
+use arithmetic::core::engine::{evaluate_expression, format_number};
+use arithmetic::core::paths::{app_config_dir, config_file_path};
 use arithmetic::skin::{compile_skin_definition, discover_skins};
-use arithmetic::storage::{append_history_entry, clear_saved_history, load_raw_history, load_settings, save_settings, AppSettings};
+use arithmetic::storage::{
+    append_history_entry, clear_saved_history, load_raw_history, load_settings, save_settings,
+    AppSettings,
+};
 
 #[test]
 fn test_skin_discovery() {
@@ -108,8 +113,6 @@ export component AppWindow inherits Window {
 
 #[test]
 fn test_config_directory_and_skins_path() {
-    use arithmetic::storage::{app_config_dir, config_file_path};
-
     let cfg_dir = app_config_dir().expect("Must resolve config dir");
     let cfg_file = config_file_path().expect("Must resolve config file path");
     assert!(cfg_file.ends_with("config.json"));
