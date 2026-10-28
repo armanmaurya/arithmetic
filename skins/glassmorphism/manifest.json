@@ -1,0 +1,51 @@
+{
+  "id": "glassmorphism",
+  "name": "Glassmorphism",
+  "version": "1.0.0",
+  "author": "Arithmetic Team",
+  "description": "Frosted translucent panels floating over a vivid gradient",
+  "preview": "previews/sunset.png",
+  "default_layout": "standard",
+  "layouts": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 400.0,
+      "height": 680.0
+    }
+  ],
+  "default_color_theme": "sunset",
+  "color_themes": [
+    {
+      "id": "sunset",
+      "name": "Sunset",
+      "swatch": [
+        "#6A3DE8",
+        "#C13FD1",
+        "#FF7A8A"
+      ],
+      "preview": "previews/sunset.png"
+    },
+    {
+      "id": "ocean",
+      "name": "Ocean",
+      "swatch": [
+        "#0B3D91",
+        "#1478C8",
+        "#2EC4B6"
+      ],
+      "preview": "previews/ocean.png"
+    },
+    {
+      "id": "aurora",
+      "name": "Aurora",
+      "swatch": [
+        "#0B1F3A",
+        "#106E6A",
+        "#6A2C91"
+      ],
+      "preview": "previews/aurora.png"
+    }
+  ]
+}

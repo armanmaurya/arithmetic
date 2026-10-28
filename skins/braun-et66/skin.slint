@@ -1,15 +1,47 @@
 export struct HistoryEntry {
     expression: string,
     result: string,
-    timestamp: string,
+}
+
+// Colour themes (ids match manifest.json): the original black ET66 and
+// the white reissue.
+global Braun {
+    in-out property <string> color-theme: "black";
+    property <bool> white: color-theme == "white";
+
+    out property <color> body-top: white ? #F4F3EE : #2A2D35;
+    out property <color> body-mid: white ? #E7E6E0 : #18191E;
+    out property <color> body-bottom: white ? #DAD9D3 : #121317;
+    out property <color> edge: white ? #C4C3BE : #141518;
+    out property <color> socket: white ? #C9C8C2 : #111215;
+    out property <color> socket-edge: white ? #B5B4AE : #08080A;
+    out property <color> key-shadow: white ? #00000040 : #000000A0;
+    out property <color> num-top: white ? #FDFDFB : #3E424C;
+    out property <color> num-bottom: white ? #E6E5E0 : #26282E;
+    out property <color> num-ink: white ? #1E1F22 : #E8ECF2;
+    out property <color> fn-top: white ? #DCDBD6 : #4A4E58;
+    out property <color> fn-bottom: white ? #C6C5C0 : #2D3038;
+    out property <color> fn-ink: white ? #1E1F22 : #FFFFFF;
+    out property <color> op-top: white ? #6E727A : #8C9099;
+    out property <color> op-bottom: white ? #4B4F57 : #555963;
+    out property <color> op-ink: white ? #FFFFFF : #121316;
+    out property <color> badge-top: white ? #FFFFFF : #32353D;
+    out property <color> badge-bottom: white ? #E8E7E2 : #202227;
+    out property <color> badge-ink: white ? #6A6D75 : #A0A5B2;
+    out property <color> chip-top: white ? #FFFFFF : #383B44;
+    out property <color> chip-bottom: white ? #E4E3DE : #22242B;
+    out property <color> chip-ink: white ? #2A2C31 : #E2E6EE;
+    out property <color> housing: white ? #2B2D31 : #0B0C0E;
+    out property <color> housing-top: white ? #3A3C41 : #15161A;
+    out property <color> housing-edge: white ? #44474D : #1A1C22;
 }
 
 component BraunKey inherits Rectangle {
     in property <string> label;
-    in property <color> top-color: #3E424C;
-    in property <color> bottom-color: #26282E;
-    in property <color> text-color: #E8ECF2;
-    in property <color> shadow-color: #000000A0;
+    in property <color> top-color: Braun.num-top;
+    in property <color> bottom-color: Braun.num-bottom;
+    in property <color> text-color: Braun.num-ink;
+    in property <color> shadow-color: Braun.key-shadow;
     in property <length> font-px: 18px;
     in property <bool> bold: false;
     callback clicked <=> touch.clicked;
@@ -21,9 +53,9 @@ component BraunKey inherits Rectangle {
         width: 100%;
         height: 100%;
         border-radius: 12px;
-        background: #111215;
+        background: Braun.socket;
         border-width: 1px;
-        border-color: #08080A;
+        border-color: Braun.socket-edge;
 
         Rectangle {
             x: 0; y: 0; width: 100%; height: 3px;
@@ -102,6 +134,7 @@ export component AppWindow inherits Window {
     in-out property <string> preview-result: "";
     in-out property <bool> is-error: false;
     in-out property <bool> use-radians: false;
+    in-out property <string> color-theme <=> Braun.color-theme;
     in-out property <[HistoryEntry]> history: [];
 
     callback press-key(string);
@@ -112,7 +145,32 @@ export component AppWindow inherits Window {
     callback switch-skin(string);
     callback open-skin-dialog();
 
-    background: @linear-gradient(175deg, #2A2D35 0%, #18191E 50%, #121317 100%);
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) { root.press-key("="); return accept; }
+            if (event.text == Key.Backspace) { root.press-key("BACKSPACE"); return accept; }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") { root.press-key("AC"); return accept; }
+            if (event.text == "t" || event.text == "T" || event.text == Key.F2) { root.open-skin-dialog(); return accept; }
+            return reject;
+        }
+    }
+
+    background: @linear-gradient(175deg, Braun.body-top 0%, Braun.body-mid 50%, Braun.body-bottom 100%);
 
     VerticalLayout {
         padding: 16px;
@@ -125,15 +183,15 @@ export component AppWindow inherits Window {
             Rectangle {
                 width: 110px;
                 border-radius: 4px;
-                background: @linear-gradient(180deg, #32353D 0%, #202227 100%);
+                background: @linear-gradient(180deg, Braun.badge-top 0%, Braun.badge-bottom 100%);
                 border-width: 1px;
-                border-color: #101114;
+                border-color: Braun.edge;
 
                 Text {
                     text: "BRAUN ET66";
                     font-size: 11px;
                     font-weight: 800;
-                    color: #A0A5B2;
+                    color: Braun.badge-ink;
                     letter-spacing: 1.5px;
                     horizontal-alignment: center;
                     vertical-alignment: center;
@@ -145,9 +203,9 @@ export component AppWindow inherits Window {
             Rectangle {
                 width: 60px;
                 border-radius: 6px;
-                background: @linear-gradient(180deg, #383B44 0%, #22242B 100%);
+                background: @linear-gradient(180deg, Braun.chip-top 0%, Braun.chip-bottom 100%);
                 border-width: 1px;
-                border-color: #141518;
+                border-color: Braun.edge;
                 drop-shadow-blur: 3px;
                 drop-shadow-offset-y: 2px;
                 drop-shadow-color: #00000080;
@@ -169,9 +227,9 @@ export component AppWindow inherits Window {
             Rectangle {
                 width: 72px;
                 border-radius: 6px;
-                background: @linear-gradient(180deg, #383B44 0%, #22242B 100%);
+                background: @linear-gradient(180deg, Braun.chip-top 0%, Braun.chip-bottom 100%);
                 border-width: 1px;
-                border-color: #141518;
+                border-color: Braun.edge;
                 drop-shadow-blur: 3px;
                 drop-shadow-offset-y: 2px;
                 drop-shadow-color: #00000080;
@@ -180,7 +238,7 @@ export component AppWindow inherits Window {
                     text: "Themes ▾";
                     font-size: 11px;
                     font-weight: 600;
-                    color: #E2E6EE;
+                    color: Braun.chip-ink;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
@@ -194,7 +252,7 @@ export component AppWindow inherits Window {
         Rectangle {
             height: 94px;
             border-radius: 8px;
-            background: #0B0C0E;
+            background: Braun.housing;
             border-width: 1px;
             border-color: #050507;
             drop-shadow-blur: 5px;
@@ -205,9 +263,9 @@ export component AppWindow inherits Window {
             Rectangle {
                 width: 100%;
                 height: 100%;
-                background: @linear-gradient(180deg, #15161A 0%, #0D0E11 100%);
+                background: @linear-gradient(180deg, Braun.housing-top 0%, Braun.housing 100%);
                 border-width: 1px;
-                border-color: #1A1C22;
+                border-color: Braun.housing-edge;
 
                 Rectangle {
                     x: 6px;
@@ -292,23 +350,23 @@ export component AppWindow inherits Window {
                 }
                 BraunKey {
                     label: "⌫";
-                    top-color: #4A4E58;
-                    bottom-color: #2D3038;
-                    text-color: #FFFFFF;
+                    top-color: Braun.fn-top;
+                    bottom-color: Braun.fn-bottom;
+                    text-color: Braun.fn-ink;
                     clicked => { root.press-key("BACKSPACE"); }
                 }
                 BraunKey {
                     label: "%";
-                    top-color: #4A4E58;
-                    bottom-color: #2D3038;
-                    text-color: #FFFFFF;
+                    top-color: Braun.fn-top;
+                    bottom-color: Braun.fn-bottom;
+                    text-color: Braun.fn-ink;
                     clicked => { root.press-key("%"); }
                 }
                 BraunKey {
                     label: "÷";
-                    top-color: #8C9099;
-                    bottom-color: #555963;
-                    text-color: #121316;
+                    top-color: Braun.op-top;
+                    bottom-color: Braun.op-bottom;
+                    text-color: Braun.op-ink;
                     font-px: 24px;
                     bold: true;
                     clicked => { root.press-key("÷"); }
@@ -324,9 +382,9 @@ export component AppWindow inherits Window {
                 BraunKey { label: "9"; font-px: 22px; bold: true; clicked => { root.press-key("9"); } }
                 BraunKey {
                     label: "×";
-                    top-color: #8C9099;
-                    bottom-color: #555963;
-                    text-color: #121316;
+                    top-color: Braun.op-top;
+                    bottom-color: Braun.op-bottom;
+                    text-color: Braun.op-ink;
                     font-px: 24px;
                     bold: true;
                     clicked => { root.press-key("×"); }
@@ -342,9 +400,9 @@ export component AppWindow inherits Window {
                 BraunKey { label: "6"; font-px: 22px; bold: true; clicked => { root.press-key("6"); } }
                 BraunKey {
                     label: "−";
-                    top-color: #8C9099;
-                    bottom-color: #555963;
-                    text-color: #121316;
+                    top-color: Braun.op-top;
+                    bottom-color: Braun.op-bottom;
+                    text-color: Braun.op-ink;
                     font-px: 24px;
                     bold: true;
                     clicked => { root.press-key("−"); }
@@ -360,9 +418,9 @@ export component AppWindow inherits Window {
                 BraunKey { label: "3"; font-px: 22px; bold: true; clicked => { root.press-key("3"); } }
                 BraunKey {
                     label: "+";
-                    top-color: #8C9099;
-                    bottom-color: #555963;
-                    text-color: #121316;
+                    top-color: Braun.op-top;
+                    bottom-color: Braun.op-bottom;
+                    text-color: Braun.op-ink;
                     font-px: 24px;
                     bold: true;
                     clicked => { root.press-key("+"); }

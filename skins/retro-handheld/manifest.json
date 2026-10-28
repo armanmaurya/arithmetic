@@ -1,0 +1,51 @@
+{
+  "id": "retro-handheld",
+  "name": "Retro Handheld",
+  "version": "1.0.0",
+  "author": "Arithmetic Team",
+  "description": "Dot-matrix handheld with a D-pad operator cluster",
+  "preview": "previews/classic.png",
+  "default_layout": "standard",
+  "layouts": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 380.0,
+      "height": 720.0
+    }
+  ],
+  "default_color_theme": "classic",
+  "color_themes": [
+    {
+      "id": "classic",
+      "name": "Classic Grey",
+      "swatch": [
+        "#D6D4CB",
+        "#9BBC0F",
+        "#9A2257"
+      ],
+      "preview": "previews/classic.png"
+    },
+    {
+      "id": "pocket",
+      "name": "Pocket Silver",
+      "swatch": [
+        "#CDD0D5",
+        "#B9BDAA",
+        "#3A3D45"
+      ],
+      "preview": "previews/pocket.png"
+    },
+    {
+      "id": "berry",
+      "name": "Berry",
+      "swatch": [
+        "#8E43AC",
+        "#9BBC0F",
+        "#3B3541"
+      ],
+      "preview": "previews/berry.png"
+    }
+  ]
+}

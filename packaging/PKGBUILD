@@ -31,4 +31,5 @@ package() {
     install -Dm644 "packaging/arithmetic.svg" "$pkgdir/usr/share/pixmaps/arithmetic.svg" 2>/dev/null || \
     install -Dm644 "$startdir/arithmetic.svg" "$pkgdir/usr/share/pixmaps/arithmetic.svg"
     install -Dm644 "LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    find skins -type f -exec install -Dm644 {} "$pkgdir/usr/share/arithmetic/{}" \;
 }

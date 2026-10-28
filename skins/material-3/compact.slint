@@ -1,10 +1,6 @@
-export struct HistoryEntry {
-    expression: string,
-    result: string,
-    timestamp: string,
-}
+import { M3Theme } from "theme.slint";
 
-component BarBtn inherits Rectangle {
+component CompactBtn inherits Rectangle {
     in property <string> label;
     in property <color> bg: #26272E;
     in property <color> fg: #FFFFFF;
@@ -32,30 +28,23 @@ component BarBtn inherits Rectangle {
 export component AppWindow inherits Window {
     title: "Arithmetic Compact";
     preferred-width: 480px;
-    preferred-height: 128px;
-    min-width: 400px;
-    min-height: 110px;
-    background: #131316;
+    preferred-height: 124px;
+    min-width: 480px;
+    max-width: 480px;
+    min-height: 124px;
+    max-height: 124px;
 
-    // Standard Calculator State Contract
     in-out property <string> expression: "";
-    in-out property <int> cursor-byte-offset: 0;
     in-out property <string> preview-result: "";
     in-out property <bool> is-error: false;
-    in-out property <bool> just-evaluated: false;
     in-out property <bool> use-radians: false;
-    in-out property <bool> inv-mode: false;
-    in-out property <[HistoryEntry]> history: [];
+    in-out property <string> color-theme <=> M3Theme.color-theme;
 
-    // Callbacks
     callback press-key(string);
-    callback expression-edited();
     callback toggle-angle-unit();
-    callback clear-history();
-    callback select-history-item(string);
-    callback switch-skin(string);
+    callback open-skin-dialog();
 
-    // Keyboard Handler
+    forward-focus: key-handler;
     key-handler := FocusScope {
         key-pressed(event) => {
             if (event.text == "0" || event.text == "1" || event.text == "2" ||
@@ -72,38 +61,31 @@ export component AppWindow inherits Window {
             if (event.text == "%") { root.press-key("%"); return accept; }
             if (event.text == "^") { root.press-key("^"); return accept; }
             if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
-            if (event.text == "=" || event.text == Key.Return) {
-                root.press-key("=");
-                return accept;
-            }
-            if (event.text == Key.Backspace) {
-                root.press-key("BACKSPACE");
-                return accept;
-            }
-            if (event.text == Key.Escape || event.text == "c" || event.text == "C") {
-                root.press-key("AC");
-                return accept;
-            }
+            if (event.text == "=" || event.text == Key.Return) { root.press-key("="); return accept; }
+            if (event.text == Key.Backspace) { root.press-key("BACKSPACE"); return accept; }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") { root.press-key("AC"); return accept; }
             return reject;
         }
     }
+
+    background: M3Theme.surface;
 
     VerticalLayout {
         padding: 10px;
         spacing: 8px;
 
-        // Top Row: Angle Badge, Expression Input & Live Preview
+        // Top Row: Angle Badge, Expression & Live Preview, Skin Switcher
         HorizontalLayout {
             spacing: 8px;
             height: 38px;
 
             Rectangle {
                 width: 52px;
-                background: #1E1F25;
+                background: M3Theme.surface-container;
                 border-radius: 8px;
                 Text {
                     text: root.use-radians ? "RAD" : "DEG";
-                    color: #B4C5FF;
+                    color: M3Theme.primary;
                     font-size: 12px;
                     font-weight: 700;
                     horizontal-alignment: center;
@@ -117,7 +99,7 @@ export component AppWindow inherits Window {
 
             Rectangle {
                 horizontal-stretch: 1;
-                background: #1E1F25;
+                background: M3Theme.surface-container;
                 border-radius: 8px;
                 clip: true;
 
@@ -129,7 +111,7 @@ export component AppWindow inherits Window {
 
                     Text {
                         text: root.expression == "" ? "0" : root.expression;
-                        color: #E4E2E6;
+                        color: M3Theme.on-surface;
                         font-size: 18px;
                         font-weight: 500;
                         vertical-alignment: center;
@@ -138,7 +120,7 @@ export component AppWindow inherits Window {
 
                     if root.preview-result != "": Text {
                         text: "= " + root.preview-result;
-                        color: root.is-error ? #FFB4AB : #B4C5FF;
+                        color: root.is-error ? M3Theme.error : M3Theme.primary;
                         font-size: 18px;
                         font-weight: 700;
                         vertical-alignment: center;
@@ -146,22 +128,22 @@ export component AppWindow inherits Window {
                 }
             }
 
-            // Skin Switcher Button
+            // Skin Dialog Button
             Rectangle {
-                width: 78px;
-                background: #1E1F25;
+                width: 76px;
+                background: M3Theme.surface-container;
                 border-radius: 8px;
                 Text {
-                    text: "🎨 Classic";
+                    text: "🎨 Theme";
                     font-size: 11px;
-                    color: #B4C5FF;
                     font-weight: 600;
+                    color: M3Theme.primary;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
                 TouchArea {
                     mouse-cursor: pointer;
-                    clicked => { root.switch-skin("classic-desktop"); }
+                    clicked => { root.open-skin-dialog(); }
                 }
             }
         }
@@ -171,15 +153,15 @@ export component AppWindow inherits Window {
             spacing: 6px;
             vertical-stretch: 1;
 
-            BarBtn { label: "AC"; bg: #573E5B; fg: #FBD7FC; clicked => { root.press-key("AC"); } }
-            BarBtn { label: "⌫"; bg: #2A2B32; fg: #E4E2E6; clicked => { root.press-key("BACKSPACE"); } }
-            BarBtn { label: "( )"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("()"); } }
-            BarBtn { label: "%"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("%"); } }
-            BarBtn { label: "÷"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("÷"); } }
-            BarBtn { label: "×"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("×"); } }
-            BarBtn { label: "−"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("−"); } }
-            BarBtn { label: "+"; bg: #3E4559; fg: #DAE2F9; clicked => { root.press-key("+"); } }
-            BarBtn { label: "="; bg: #B4C5FF; fg: #002A78; clicked => { root.press-key("="); } }
+            CompactBtn { label: "AC"; bg: M3Theme.tertiary-container; fg: M3Theme.on-tertiary-container; clicked => { root.press-key("AC"); } }
+            CompactBtn { label: "⌫"; bg: M3Theme.surface-container-high; fg: M3Theme.on-surface; clicked => { root.press-key("BACKSPACE"); } }
+            CompactBtn { label: "( )"; bg: M3Theme.secondary-container; fg: M3Theme.on-secondary-container; clicked => { root.press-key("()"); } }
+            CompactBtn { label: "%"; bg: M3Theme.secondary-container; fg: M3Theme.on-secondary-container; clicked => { root.press-key("%"); } }
+            CompactBtn { label: "÷"; bg: M3Theme.secondary-container; fg: M3Theme.on-secondary-container; clicked => { root.press-key("÷"); } }
+            CompactBtn { label: "×"; bg: M3Theme.secondary-container; fg: M3Theme.on-secondary-container; clicked => { root.press-key("×"); } }
+            CompactBtn { label: "−"; bg: M3Theme.secondary-container; fg: M3Theme.on-secondary-container; clicked => { root.press-key("−"); } }
+            CompactBtn { label: "+"; bg: M3Theme.secondary-container; fg: M3Theme.on-secondary-container; clicked => { root.press-key("+"); } }
+            CompactBtn { label: "="; bg: M3Theme.primary; fg: M3Theme.on-primary; clicked => { root.press-key("="); } }
         }
     }
 }

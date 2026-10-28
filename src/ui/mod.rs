@@ -1,4 +1,3 @@
-pub mod controller;
-pub mod state;
+pub mod host;
 
-pub use controller::setup_callbacks;
+pub use host::App;

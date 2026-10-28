@@ -1,0 +1,51 @@
+{
+  "id": "cyberpunk-neon",
+  "name": "Cyberpunk Neon",
+  "version": "1.0.0",
+  "author": "Arithmetic Team",
+  "description": "Neon tubes glowing over a synthwave grid",
+  "preview": "previews/neon.png",
+  "default_layout": "standard",
+  "layouts": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 400.0,
+      "height": 680.0
+    }
+  ],
+  "default_color_theme": "neon",
+  "color_themes": [
+    {
+      "id": "neon",
+      "name": "Neon",
+      "swatch": [
+        "#0D0221",
+        "#FF2BD6",
+        "#00F0FF"
+      ],
+      "preview": "previews/neon.png"
+    },
+    {
+      "id": "vaporwave",
+      "name": "Vaporwave",
+      "swatch": [
+        "#2D1B5A",
+        "#FF71CE",
+        "#01CDFE"
+      ],
+      "preview": "previews/vaporwave.png"
+    },
+    {
+      "id": "toxic",
+      "name": "Toxic",
+      "swatch": [
+        "#020A02",
+        "#39FF14",
+        "#E4FF1A"
+      ],
+      "preview": "previews/toxic.png"
+    }
+  ]
+}

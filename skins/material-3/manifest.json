@@ -3,16 +3,10 @@
   "name": "Material You",
   "version": "1.0.0",
   "author": "Google",
-  "description": "Adaptive Google Material Design 3 theme with Compact, Standard, and Large layouts",
-  "default_variant": "standard",
-  "variants": [
-    {
-      "id": "compact",
-      "name": "Compact",
-      "file": "compact.slint",
-      "width": 480.0,
-      "height": 124.0
-    },
+  "description": "Adaptive Material Design 3 with history drawer and scientific panel",
+  "preview": "previews/system.png",
+  "default_layout": "standard",
+  "layouts": [
     {
       "id": "standard",
       "name": "Standard",
@@ -21,11 +15,51 @@
       "height": 780.0
     },
     {
+      "id": "compact",
+      "name": "Compact",
+      "file": "compact.slint",
+      "width": 480.0,
+      "height": 124.0
+    },
+    {
       "id": "large",
       "name": "Large",
       "file": "large.slint",
       "width": 780.0,
       "height": 500.0
+    }
+  ],
+  "default_color_theme": "system",
+  "color_themes": [
+    {
+      "id": "system",
+      "name": "System",
+      "swatch": [
+        "#FAF9FD",
+        "#131316",
+        "#B4C5FF"
+      ],
+      "preview": "previews/system.png"
+    },
+    {
+      "id": "light",
+      "name": "Light",
+      "swatch": [
+        "#FAF9FD",
+        "#DAE2FF",
+        "#335CA8"
+      ],
+      "preview": "previews/light.png"
+    },
+    {
+      "id": "dark",
+      "name": "Dark",
+      "swatch": [
+        "#131316",
+        "#3E4559",
+        "#B4C5FF"
+      ],
+      "preview": "previews/dark.png"
     }
   ]
 }

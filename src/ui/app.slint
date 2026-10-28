@@ -1,0 +1,552 @@
+// Built-in application screens. These are NOT skins: the calculator itself is
+// always rendered by a skin loaded at runtime from a skins directory.
+// This file only provides the skin picker and the "no skin installed" screen.
+
+import { ScrollView, Palette } from "std-widgets.slint";
+
+// App chrome follows the desktop's light/dark preference.
+global AppTheme {
+    out property <bool> is-dark: Palette.color-scheme != ColorScheme.light;
+
+    out property <color> surface: is-dark ? #121316 : #FAF9FD;
+    out property <color> surface-dim: is-dark ? #0D0E11 : #EEEEF4;
+    out property <color> surface-container: is-dark ? #1C1D22 : #F1F1F7;
+    out property <color> surface-container-high: is-dark ? #26272E : #E7E7EF;
+    out property <color> primary: is-dark ? #B4C5FF : #335CA8;
+    out property <color> on-primary: is-dark ? #002A78 : #FFFFFF;
+    out property <color> primary-container: is-dark ? #24396B : #DAE2FF;
+    out property <color> on-primary-container: is-dark ? #DAE2FF : #001848;
+    out property <color> on-surface: is-dark ? #E4E2E6 : #1B1B1F;
+    out property <color> on-surface-variant: is-dark ? #C5C6D0 : #44464F;
+    out property <color> outline: is-dark ? #8F9099 : #757780;
+    out property <color> outline-variant: is-dark ? #3A3C44 : #D2D3DC;
+    out property <color> error: is-dark ? #FFB4AB : #BA1A1A;
+}
+
+export struct SkinOptionEntry {
+    id: string,
+    name: string,
+    // Up to three colours shown in a colour theme's swatch
+    swatch: [color],
+}
+
+export struct SkinModelEntry {
+    id: string,
+    name: string,
+    badge: string,
+    description: string,
+    author: string,
+    // e.g. "3 layouts · 4 colours"
+    summary: string,
+    thumbnail: image,
+    has-thumbnail: bool,
+    layouts: [SkinOptionEntry],
+    color-themes: [SkinOptionEntry],
+}
+
+// ---------------------------------------------------------------------------
+// Building blocks
+// ---------------------------------------------------------------------------
+
+component SectionLabel inherits Text {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: AppTheme.outline;
+}
+
+// Rounded thumbnail of a skin, or its initials when it ships no preview.
+component SkinThumb inherits Rectangle {
+    in property <image> source;
+    in property <bool> has-source;
+    in property <string> badge;
+    in property <bool> active;
+
+    border-radius: 8px;
+    clip: true;
+    background: root.active ? AppTheme.primary : AppTheme.surface-container-high;
+
+    if root.has-source: Image {
+        width: 100%;
+        height: 100%;
+        source: root.source;
+        image-fit: cover;
+        image-rendering: smooth;
+    }
+    if !root.has-source: Text {
+        text: root.badge;
+        font-size: 13px;
+        font-weight: 700;
+        color: root.active ? AppTheme.on-primary : AppTheme.on-surface-variant;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component SkinRow inherits Rectangle {
+    in property <SkinModelEntry> skin;
+    in property <bool> selected;
+    callback clicked <=> touch.clicked;
+
+    height: 60px;
+    border-radius: 12px;
+    background: root.selected ? AppTheme.primary-container :
+                (touch.has-hover ? AppTheme.surface-container-high : transparent);
+    animate background { duration: 120ms; }
+
+    HorizontalLayout {
+        padding: 8px;
+        spacing: 12px;
+
+        SkinThumb {
+            width: 44px;
+            source: root.skin.thumbnail;
+            has-source: root.skin.has-thumbnail;
+            badge: root.skin.badge;
+            active: root.selected;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            Text {
+                text: root.skin.name;
+                font-size: 14px;
+                font-weight: 600;
+                color: root.selected ? AppTheme.on-primary-container : AppTheme.on-surface;
+                overflow: elide;
+            }
+            Text {
+                text: root.skin.summary;
+                font-size: 11px;
+                color: root.selected ? AppTheme.on-primary-container.with-alpha(0.75) : AppTheme.on-surface-variant;
+                overflow: elide;
+            }
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+// One segment of the layout control.
+component Segment inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    callback clicked <=> touch.clicked;
+
+    horizontal-stretch: 1;
+    border-radius: 8px;
+    background: root.selected ? AppTheme.surface :
+                (touch.has-hover ? AppTheme.surface-container-high : transparent);
+    drop-shadow-blur: root.selected ? 4px : 0px;
+    drop-shadow-offset-y: 1px;
+    drop-shadow-color: #00000030;
+    animate background { duration: 120ms; }
+
+    Text {
+        text: root.label;
+        font-size: 13px;
+        font-weight: root.selected ? 600 : 500;
+        color: root.selected ? AppTheme.on-surface : AppTheme.on-surface-variant;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+// A round colour sample made of up to three vertical stripes.
+component Swatch inherits Rectangle {
+    in property <SkinOptionEntry> option;
+    in property <bool> selected;
+    callback clicked <=> touch.clicked;
+
+    width: 64px;
+    height: 70px;
+
+    // Selection ring
+    Rectangle {
+        x: (parent.width - 44px) / 2;
+        y: 0;
+        width: 44px;
+        height: 44px;
+        border-radius: 22px;
+        border-width: root.selected ? 2px : 0px;
+        border-color: AppTheme.primary;
+        background: touch.has-hover && !root.selected ? AppTheme.surface-container-high : transparent;
+
+        Rectangle {
+            x: 5px;
+            y: 5px;
+            width: 34px;
+            height: 34px;
+            border-radius: 17px;
+            border-width: 1px;
+            border-color: AppTheme.outline-variant;
+            background: AppTheme.surface-container-high;
+            clip: true;
+
+            for c[i] in root.option.swatch: Rectangle {
+                x: i * parent.width / root.option.swatch.length;
+                width: parent.width / root.option.swatch.length + 1px;
+                height: parent.height;
+                background: c;
+            }
+        }
+    }
+
+    Text {
+        y: 48px;
+        width: root.width;
+        text: root.option.name;
+        font-size: 11px;
+        font-weight: root.selected ? 600 : 400;
+        color: root.selected ? AppTheme.on-surface : AppTheme.on-surface-variant;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+component PillButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> filled: true;
+    callback clicked <=> touch.clicked;
+
+    height: 38px;
+    border-radius: 19px;
+    border-width: root.filled ? 0px : 1px;
+    border-color: AppTheme.outline-variant;
+    background: root.filled
+        ? (touch.pressed ? AppTheme.primary.darker(15%) : (touch.has-hover ? AppTheme.primary.brighter(10%) : AppTheme.primary))
+        : (touch.pressed ? AppTheme.surface-container-high.darker(10%) : (touch.has-hover ? AppTheme.surface-container-high : transparent));
+    animate background { duration: 120ms; }
+
+    Text {
+        text: root.label;
+        font-size: 13px;
+        font-weight: 600;
+        color: root.filled ? AppTheme.on-primary : AppTheme.on-surface;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Skin picker
+// ---------------------------------------------------------------------------
+
+export component SkinDialog inherits Window {
+    title: "Skins";
+    icon: @image-url("../../packaging/arithmetic-48.png");
+    preferred-width: 780px;
+    preferred-height: 560px;
+    min-width: 680px;
+    min-height: 480px;
+    background: AppTheme.surface;
+
+    in property <[SkinModelEntry]> available-skins: [];
+    in property <string> selected-skin: "";
+    in property <string> selected-layout: "";
+    in property <string> selected-color-theme: "";
+    // Details of the selected skin, filled in by the host
+    in property <SkinModelEntry> current;
+    in property <image> current-preview;
+    in property <bool> has-current-preview: false;
+    in property <string> load-error: "";
+
+    // (skin id, layout id, colour theme id); empty ids keep what the skin last used
+    callback apply-skin(string, string, string);
+    callback open-skins-folder();
+    callback reload-skins();
+    callback close-dialog();
+
+    HorizontalLayout {
+        // ---- Sidebar: installed skins ----
+        Rectangle {
+            width: 260px;
+            background: AppTheme.surface-container;
+
+            VerticalLayout {
+                padding: 16px;
+                padding-bottom: 12px;
+                spacing: 12px;
+
+                HorizontalLayout {
+                    padding-left: 4px;
+                    Text {
+                        text: "Skins";
+                        font-size: 20px;
+                        font-weight: 600;
+                        color: AppTheme.on-surface;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.available-skins.length;
+                        font-size: 12px;
+                        color: AppTheme.outline;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 2px;
+                        padding-right: 4px;
+                        for skin in root.available-skins: SkinRow {
+                            skin: skin;
+                            selected: skin.id == root.selected-skin;
+                            clicked => {
+                                if (skin.id != root.selected-skin) {
+                                    root.apply-skin(skin.id, "", "");
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    PillButton {
+                        horizontal-stretch: 1;
+                        label: "Open Folder";
+                        filled: false;
+                        clicked => { root.open-skins-folder(); }
+                    }
+                    PillButton {
+                        horizontal-stretch: 1;
+                        label: "Reload";
+                        filled: false;
+                        clicked => { root.reload-skins(); }
+                    }
+                }
+            }
+        }
+
+        // ---- Detail pane ----
+        VerticalLayout {
+            horizontal-stretch: 1;
+            padding: 24px;
+            padding-bottom: 16px;
+            spacing: 18px;
+
+            HorizontalLayout {
+                spacing: 24px;
+                vertical-stretch: 1;
+
+                // Live preview of the selected layout/colour
+                Rectangle {
+                    width: 210px;
+                    border-radius: 16px;
+                    background: AppTheme.surface-dim;
+                    clip: true;
+
+                    if root.has-current-preview: Image {
+                        x: 12px;
+                        y: 12px;
+                        width: parent.width - 24px;
+                        height: parent.height - 24px;
+                        source: root.current-preview;
+                        image-fit: contain;
+                        image-rendering: smooth;
+                    }
+                    if !root.has-current-preview: Text {
+                        text: "No preview";
+                        font-size: 12px;
+                        color: AppTheme.outline;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 6px;
+                    alignment: start;
+
+                    Text {
+                        text: root.current.name;
+                        font-size: 24px;
+                        font-weight: 600;
+                        color: AppTheme.on-surface;
+                        wrap: word-wrap;
+                    }
+                    if root.current.author != "": Text {
+                        text: "by " + root.current.author;
+                        font-size: 12px;
+                        color: AppTheme.outline;
+                    }
+                    if root.current.description != "": Text {
+                        text: root.current.description;
+                        font-size: 13px;
+                        color: AppTheme.on-surface-variant;
+                        wrap: word-wrap;
+                    }
+
+                    Rectangle { height: 12px; }
+
+                    if root.current.layouts.length > 1: VerticalLayout {
+                        spacing: 8px;
+                        SectionLabel { text: "LAYOUT"; }
+                        Rectangle {
+                            height: 40px;
+                            border-radius: 10px;
+                            background: AppTheme.surface-container-high;
+                            HorizontalLayout {
+                                padding: 3px;
+                                spacing: 3px;
+                                for layout in root.current.layouts: Segment {
+                                    label: layout.name;
+                                    selected: layout.id == root.selected-layout;
+                                    clicked => { root.apply-skin(root.current.id, layout.id, ""); }
+                                }
+                            }
+                        }
+                        Rectangle { height: 8px; }
+                    }
+
+                    if root.current.color-themes.length > 1: VerticalLayout {
+                        spacing: 8px;
+                        SectionLabel { text: "COLOUR"; }
+                        // Swatches wrap onto as many rows as needed
+                        swatch-grid := Rectangle {
+                            property <int> per-row: max(1, floor(self.width / 68px));
+                            height: ceil(root.current.color-themes.length / self.per-row) * 74px;
+                            for theme[i] in root.current.color-themes: Swatch {
+                                x: mod(i, swatch-grid.per-row) * 68px;
+                                y: floor(i / swatch-grid.per-row) * 74px;
+                                option: theme;
+                                selected: theme.id == root.selected-color-theme;
+                                clicked => { root.apply-skin(root.current.id, "", theme.id); }
+                            }
+                        }
+                    }
+
+                    if root.current.layouts.length <= 1 && root.current.color-themes.length <= 1: Text {
+                        text: "This skin has a single layout and colour scheme.";
+                        font-size: 12px;
+                        color: AppTheme.outline;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+
+            if root.load-error != "": Rectangle {
+                border-radius: 10px;
+                background: AppTheme.error.with-alpha(0.14);
+                VerticalLayout {
+                    padding: 10px;
+                    Text {
+                        text: root.load-error;
+                        font-size: 12px;
+                        color: AppTheme.error;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                Text {
+                    horizontal-stretch: 1;
+                    text: "Tip: press T or F2 in the calculator to open this window";
+                    font-size: 11px;
+                    color: AppTheme.outline;
+                    vertical-alignment: center;
+                }
+                PillButton {
+                    width: 100px;
+                    label: "Done";
+                    clicked => { root.close-dialog(); }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Shown when no skin can be found or compiled
+// ---------------------------------------------------------------------------
+
+export component NoSkinWindow inherits Window {
+    title: "Arithmetic - No Skin Installed";
+    icon: @image-url("../../packaging/arithmetic-48.png");
+    preferred-width: 460px;
+    preferred-height: 340px;
+    min-width: 460px;
+    min-height: 340px;
+    background: AppTheme.surface;
+
+    in property <string> skins-dir: "~/.config/arithmetic/skins/";
+    in property <string> load-error: "";
+
+    callback open-skins-folder();
+    callback reload-skins();
+
+    VerticalLayout {
+        alignment: center;
+        spacing: 14px;
+        padding: 24px;
+
+        Image {
+            source: @image-url("../../packaging/arithmetic-48.png");
+            height: 48px;
+        }
+
+        Text {
+            text: "No Skin Installed";
+            font-size: 19px;
+            font-weight: 700;
+            color: AppTheme.on-surface;
+            horizontal-alignment: center;
+        }
+
+        Text {
+            text: "Arithmetic requires a skin to display the calculator.\nPlace skin folders into:\n" + root.skins-dir;
+            font-size: 13px;
+            color: AppTheme.on-surface-variant;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+
+        if root.load-error != "": Text {
+            text: root.load-error;
+            font-size: 11px;
+            color: AppTheme.error;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+
+        HorizontalLayout {
+            alignment: center;
+            spacing: 12px;
+            padding-top: 10px;
+
+            PillButton {
+                width: 160px;
+                label: "Open Skins Folder";
+                clicked => { root.open-skins-folder(); }
+            }
+            PillButton {
+                width: 130px;
+                label: "Check Again";
+                filled: false;
+                clicked => { root.reload-skins(); }
+            }
+        }
+    }
+}

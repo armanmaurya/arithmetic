@@ -1,0 +1,225 @@
+// Phosphor-green console. Every key is a bracketed box: [ 7 ]
+
+// Colour themes (ids match manifest.json): classic monochrome phosphors
+global Term {
+    in-out property <string> color-theme: "green";
+    property <bool> amber: color-theme == "amber";
+    property <bool> cyan: color-theme == "cyan";
+
+    out property <color> ink: amber ? #FFB000 : (cyan ? #39E6FF : #33FF66);
+    out property <color> dim: amber ? #A86F00 : (cyan ? #1D8FA3 : #1F9E40);
+    out property <color> bright: amber ? #FFE2A0 : (cyan ? #CFF8FF : #CCFFDD);
+    out property <color> result: amber ? #FFD27A : (cyan ? #A6F2FF : #9DFFB4);
+    out property <color> alert: amber ? #FF5F3A : (cyan ? #FF6B8B : #FF5555);
+    out property <color> on-ink: amber ? #1A1000 : (cyan ? #021418 : #031A08);
+    out property <color> bg: amber ? #0A0702 : (cyan ? #03090B : #050A06);
+    out property <color> panel: amber ? #060401 : (cyan ? #020507 : #020603);
+}
+
+component TermKey inherits Rectangle {
+    in property <string> label;
+    in property <color> ink: Term.ink;
+    callback clicked <=> touch.clicked;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+
+    background: touch.pressed ? root.ink : (touch.has-hover ? root.ink.with-alpha(0.14) : transparent);
+    border-width: 1px;
+    border-color: root.ink.with-alpha(touch.has-hover ? 0.9 : 0.45);
+
+    Text {
+        text: "[ " + root.label + " ]";
+        color: touch.pressed ? Term.on-ink : root.ink;
+        font-family: "monospace";
+        font-size: 16px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+component TermLink inherits Text {
+    callback clicked <=> touch.clicked;
+
+    color: touch.has-hover ? Term.bright : Term.ink;
+    font-family: "monospace";
+    font-size: 12px;
+    vertical-alignment: center;
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Terminal";
+    preferred-width: 400px;
+    preferred-height: 660px;
+    min-width: 400px;
+    max-width: 400px;
+    min-height: 660px;
+    max-height: 660px;
+    background: Term.bg;
+
+    in-out property <string> expression: "";
+    in-out property <string> preview-result: "";
+    in-out property <bool> is-error: false;
+    in-out property <bool> use-radians: false;
+    in-out property <string> color-theme <=> Term.color-theme;
+
+    callback press-key(string);
+    callback toggle-angle-unit();
+    callback open-skin-dialog();
+
+    property <bool> cursor-on: mod(animation-tick() / 1ms, 1060) < 530;
+
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) { root.press-key("="); return accept; }
+            if (event.text == Key.Backspace) { root.press-key("BACKSPACE"); return accept; }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") { root.press-key("AC"); return accept; }
+            if (event.text == "t" || event.text == "T" || event.text == Key.F2) { root.open-skin-dialog(); return accept; }
+            return reject;
+        }
+    }
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 12px;
+
+        // Status line
+        HorizontalLayout {
+            height: 20px;
+            spacing: 14px;
+
+            Text {
+                text: "arithmetic@tty1:~$";
+                color: Term.dim;
+                font-family: "monospace";
+                font-size: 12px;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            TermLink {
+                text: root.use-radians ? "--rad" : "--deg";
+                clicked => { root.toggle-angle-unit(); }
+            }
+            TermLink {
+                text: "--theme";
+                clicked => { root.open-skin-dialog(); }
+            }
+        }
+
+        // Console output
+        Rectangle {
+            height: 140px;
+            border-width: 1px;
+            border-color: Term.ink.with-alpha(0.45);
+            background: Term.panel;
+            clip: true;
+
+            VerticalLayout {
+                padding: 12px;
+                spacing: 6px;
+                alignment: end;
+
+                Text {
+                    text: "$ calc --interactive";
+                    color: Term.dim;
+                    font-family: "monospace";
+                    font-size: 12px;
+                }
+                Text {
+                    text: "> " + root.expression + (root.cursor-on ? "█" : " ");
+                    color: Term.ink;
+                    font-family: "monospace";
+                    font-size: root.expression.character-count > 18 ? 18px : 24px;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.is-error ? "error: " + root.preview-result :
+                          (root.preview-result == "" ? " " : "  " + root.preview-result);
+                    color: root.is-error ? Term.alert : Term.result;
+                    font-family: "monospace";
+                    font-size: 18px;
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: 6px;
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                spacing: 6px;
+                TermKey { label: "sin"; ink: Term.result; clicked => { root.press-key("sin("); } }
+                TermKey { label: "cos"; ink: Term.result; clicked => { root.press-key("cos("); } }
+                TermKey { label: "sqrt"; ink: Term.result; clicked => { root.press-key("√("); } }
+                TermKey { label: "^"; ink: Term.result; clicked => { root.press-key("^"); } }
+            }
+            HorizontalLayout {
+                spacing: 6px;
+                TermKey { label: "clr"; ink: Term.alert; clicked => { root.press-key("AC"); } }
+                TermKey { label: "del"; ink: Term.bright; clicked => { root.press-key("BACKSPACE"); } }
+                TermKey { label: "()"; ink: Term.bright; clicked => { root.press-key("()"); } }
+                TermKey { label: "/"; ink: Term.bright; clicked => { root.press-key("÷"); } }
+            }
+            HorizontalLayout {
+                spacing: 6px;
+                TermKey { label: "7"; clicked => { root.press-key("7"); } }
+                TermKey { label: "8"; clicked => { root.press-key("8"); } }
+                TermKey { label: "9"; clicked => { root.press-key("9"); } }
+                TermKey { label: "*"; ink: Term.bright; clicked => { root.press-key("×"); } }
+            }
+            HorizontalLayout {
+                spacing: 6px;
+                TermKey { label: "4"; clicked => { root.press-key("4"); } }
+                TermKey { label: "5"; clicked => { root.press-key("5"); } }
+                TermKey { label: "6"; clicked => { root.press-key("6"); } }
+                TermKey { label: "-"; ink: Term.bright; clicked => { root.press-key("−"); } }
+            }
+            HorizontalLayout {
+                spacing: 6px;
+                TermKey { label: "1"; clicked => { root.press-key("1"); } }
+                TermKey { label: "2"; clicked => { root.press-key("2"); } }
+                TermKey { label: "3"; clicked => { root.press-key("3"); } }
+                TermKey { label: "+"; ink: Term.bright; clicked => { root.press-key("+"); } }
+            }
+            HorizontalLayout {
+                spacing: 6px;
+                TermKey { label: "0"; clicked => { root.press-key("0"); } }
+                TermKey { label: "."; clicked => { root.press-key("."); } }
+                TermKey { label: "%"; ink: Term.bright; clicked => { root.press-key("%"); } }
+                TermKey { label: "run"; ink: Term.bright; clicked => { root.press-key("="); } }
+            }
+        }
+    }
+
+    // CRT scanlines (purely decorative, never intercepts input)
+    for i in 220: Rectangle {
+        y: i * 3px;
+        width: root.width;
+        height: 1px;
+        background: #00000038;
+    }
+}

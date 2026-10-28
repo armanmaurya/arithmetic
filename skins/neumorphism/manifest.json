@@ -1,0 +1,48 @@
+{
+  "id": "neumorphism",
+  "name": "Neumorphism",
+  "version": "1.0.0",
+  "author": "Arithmetic Team",
+  "description": "Soft extruded keys moulded out of the surface",
+  "preview": "previews/light.png",
+  "default_layout": "standard",
+  "layouts": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 380.0,
+      "height": 680.0
+    }
+  ],
+  "default_color_theme": "light",
+  "color_themes": [
+    {
+      "id": "light",
+      "name": "Light",
+      "swatch": [
+        "#E0E5EC",
+        "#6C63FF"
+      ],
+      "preview": "previews/light.png"
+    },
+    {
+      "id": "dark",
+      "name": "Dark",
+      "swatch": [
+        "#2B2F36",
+        "#7F78FF"
+      ],
+      "preview": "previews/dark.png"
+    },
+    {
+      "id": "sand",
+      "name": "Sand",
+      "swatch": [
+        "#EDE4D6",
+        "#D9772B"
+      ],
+      "preview": "previews/sand.png"
+    }
+  ]
+}

@@ -2,10 +2,11 @@
   "id": "casio-fx991ms",
   "name": "Casio fx-991MS",
   "version": "1.0.0",
-  "author": "Casio Computer Co.",
-  "description": "Authentic Casio scientific calculator with dual-line display and secondary SHIFT/ALPHA functions",
-  "default_variant": "standard",
-  "variants": [
+  "author": "Arithmetic Team",
+  "description": "Photo-real replica of the Casio fx-991MS scientific calculator",
+  "preview": "previews/standard.png",
+  "default_layout": "standard",
+  "layouts": [
     {
       "id": "standard",
       "name": "Standard",

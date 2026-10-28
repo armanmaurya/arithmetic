@@ -1,0 +1,30 @@
+import { MonoCalculator } from "body.slint";
+
+export component AppWindow inherits Window {
+    title: "Minimal Mono";
+    preferred-width: 380px;
+    preferred-height: 640px;
+    min-width: 380px;
+    max-width: 380px;
+    min-height: 640px;
+    max-height: 640px;
+    background: calc.paper;
+
+    in-out property <string> expression <=> calc.expression;
+    in-out property <string> preview-result <=> calc.preview-result;
+    in-out property <bool> is-error <=> calc.is-error;
+    in-out property <bool> use-radians <=> calc.use-radians;
+    // Colour theme ids match manifest.json
+    in-out property <string> color-theme: "light";
+
+    callback press-key <=> calc.press-key;
+    callback toggle-angle-unit <=> calc.toggle-angle-unit;
+    callback open-skin-dialog <=> calc.open-skin-dialog;
+
+    forward-focus: calc;
+    calc := MonoCalculator {
+        ink: root.color-theme == "dark" ? #FFFFFF : (root.color-theme == "red" ? #FFFFFF : #000000);
+        paper: root.color-theme == "dark" ? #000000 : (root.color-theme == "red" ? #E1251B : #FFFFFF);
+        alert: root.color-theme == "red" ? #FFE600 : #E53935;
+    }
+}

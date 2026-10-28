@@ -1,0 +1,113 @@
+import { DevCalculator, DevPalette } from "body.slint";
+
+export component AppWindow inherits Window {
+    title: "Dev Palettes";
+    preferred-width: 380px;
+    preferred-height: 640px;
+    min-width: 380px;
+    max-width: 380px;
+    min-height: 640px;
+    max-height: 640px;
+    background: calc.pal.base;
+
+    in-out property <string> expression <=> calc.expression;
+    in-out property <string> preview-result <=> calc.preview-result;
+    in-out property <bool> is-error <=> calc.is-error;
+    in-out property <bool> use-radians <=> calc.use-radians;
+    // Colour theme ids match manifest.json
+    in-out property <string> color-theme: "nord";
+
+    callback press-key <=> calc.press-key;
+    callback toggle-angle-unit <=> calc.toggle-angle-unit;
+    callback open-skin-dialog <=> calc.open-skin-dialog;
+
+    property <DevPalette> nord: {
+        name: "Nord",
+        base: #2E3440,
+        mantle: #272C36,
+        surface: #3B4252,
+        surface-hi: #434C5E,
+        text: #ECEFF4,
+        subtext: #D8DEE9,
+        func: #81A1C1,
+        op: #88C0D0,
+        clear: #BF616A,
+        equals: #A3BE8C,
+        on-equals: #2E3440,
+    };
+    property <DevPalette> mocha: {
+        name: "Catppuccin Mocha",
+        base: #1E1E2E,
+        mantle: #181825,
+        surface: #313244,
+        surface-hi: #45475A,
+        text: #CDD6F4,
+        subtext: #A6ADC8,
+        func: #89B4FA,
+        op: #CBA6F7,
+        clear: #F38BA8,
+        equals: #A6E3A1,
+        on-equals: #1E1E2E,
+    };
+    property <DevPalette> latte: {
+        name: "Catppuccin Latte",
+        base: #EFF1F5,
+        mantle: #E6E9EF,
+        surface: #CCD0DA,
+        surface-hi: #BCC0CC,
+        text: #4C4F69,
+        subtext: #6C6F85,
+        func: #1E66F5,
+        op: #8839EF,
+        clear: #D20F39,
+        equals: #40A02B,
+        on-equals: #EFF1F5,
+    };
+    property <DevPalette> gruvbox: {
+        name: "Gruvbox",
+        base: #282828,
+        mantle: #1D2021,
+        surface: #3C3836,
+        surface-hi: #504945,
+        text: #EBDBB2,
+        subtext: #BDAE93,
+        func: #83A598,
+        op: #FE8019,
+        clear: #FB4934,
+        equals: #B8BB26,
+        on-equals: #282828,
+    };
+    property <DevPalette> dracula: {
+        name: "Dracula",
+        base: #282A36,
+        mantle: #21222C,
+        surface: #44475A,
+        surface-hi: #565970,
+        text: #F8F8F2,
+        subtext: #BFBFD6,
+        func: #8BE9FD,
+        op: #BD93F9,
+        clear: #FF5555,
+        equals: #50FA7B,
+        on-equals: #282A36,
+    };
+    property <DevPalette> tokyo-night: {
+        name: "Tokyo Night",
+        base: #1A1B26,
+        mantle: #16161E,
+        surface: #292E42,
+        surface-hi: #3B4261,
+        text: #C0CAF5,
+        subtext: #A9B1D6,
+        func: #7DCFFF,
+        op: #BB9AF7,
+        clear: #F7768E,
+        equals: #9ECE6A,
+        on-equals: #1A1B26,
+    };
+
+    forward-focus: calc;
+    calc := DevCalculator {
+        pal: (root.color-theme == "mocha" ? root.mocha : (root.color-theme == "latte" ? root.latte : (root.color-theme == "gruvbox" ? root.gruvbox : (root.color-theme == "dracula" ? root.dracula : (root.color-theme == "tokyo-night" ? root.tokyo-night : root.nord)))));
+    }
+}

@@ -1,7 +1,31 @@
 export struct HistoryEntry {
     expression: string,
     result: string,
-    timestamp: string,
+}
+
+// Colour themes (ids match manifest.json): the original 1977 brown case
+// with red LED digits, and the later black case with a grey LCD.
+global TI {
+    in-out property <string> color-theme: "brown";
+    property <bool> black: color-theme == "black";
+
+    out property <color> chassis-top: black ? #2C2C30 : #322318;
+    out property <color> chassis-mid: black ? #1F1F22 : #221811;
+    out property <color> chassis-bottom: black ? #151517 : #17100B;
+    out property <color> socket: black ? #0B0B0C : #140E0A;
+    out property <color> fn-key: black ? #3A3A40 : #38281D;
+    out property <color> fn-ink: black ? #E6E6EA : #E2DAC5;
+    out property <color> op-ink: #FFFFFF;
+    out property <color> num-key: black ? #505057 : #E8E2D2;
+    out property <color> num-ink: black ? #FFFFFF : #24170E;
+    out property <color> clear-key: black ? #B8322B : #C01818;
+    out property <color> equals-key: black ? #2F5FA8 : #D67A20;
+    out property <color> display-top: black ? #A3AE97 : #240205CC;
+    out property <color> display-mid: black ? #939E87 : #3B0308BB;
+    out property <color> display-bottom: black ? #848F78 : #150103EE;
+    out property <color> display-ink: black ? #1D2318 : #FF2020;
+    out property <color> display-dim: black ? #1D231890 : #FF353590;
+    out property <color> display-error: black ? #6B1A1A : #FFA0A0;
 }
 
 component TIDatamathKey inherits Rectangle {
@@ -22,7 +46,7 @@ component TIDatamathKey inherits Rectangle {
         width: 100%;
         height: 100%;
         border-radius: 6px;
-        background: #140E0A;
+        background: TI.socket;
         border-width: 1px;
         border-color: #0A0705;
 
@@ -102,6 +126,7 @@ export component AppWindow inherits Window {
     in-out property <string> preview-result: "";
     in-out property <bool> is-error: false;
     in-out property <bool> use-radians: false;
+    in-out property <string> color-theme <=> TI.color-theme;
     in-out property <[HistoryEntry]> history: [];
 
     callback press-key(string);
@@ -112,8 +137,33 @@ export component AppWindow inherits Window {
     callback switch-skin(string);
     callback open-skin-dialog();
 
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) { root.press-key("="); return accept; }
+            if (event.text == Key.Backspace) { root.press-key("BACKSPACE"); return accept; }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") { root.press-key("AC"); return accept; }
+            if (event.text == "t" || event.text == "T" || event.text == Key.F2) { root.open-skin-dialog(); return accept; }
+            return reject;
+        }
+    }
+
     // 1970s textured injection-molded chocolate brown casing
-    background: @linear-gradient(175deg, #322318 0%, #221811 50%, #17100B 100%);
+    background: @linear-gradient(175deg, TI.chassis-top 0%, TI.chassis-mid 50%, TI.chassis-bottom 100%);
 
     VerticalLayout {
         padding: 16px;
@@ -166,9 +216,9 @@ export component AppWindow inherits Window {
             Rectangle {
                 width: 64px;
                 border-radius: 4px;
-                background: #140E0A;
+                background: TI.socket;
                 border-width: 1px;
-                border-color: #38281D;
+                border-color: TI.fn-key;
 
                 HorizontalLayout {
                     alignment: center;
@@ -227,7 +277,7 @@ export component AppWindow inherits Window {
             Rectangle {
                 width: 100%;
                 height: 100%;
-                background: @linear-gradient(180deg, #240205CC 0%, #3B0308BB 60%, #150103EE 100%);
+                background: @linear-gradient(180deg, TI.display-top 0%, TI.display-mid 60%, TI.display-bottom 100%);
 
                 Rectangle {
                     x: 6px;
@@ -252,7 +302,7 @@ export component AppWindow inherits Window {
                             text: root.expression == "" ? "0" : root.expression;
                             font-size: 16px;
                             font-weight: 700;
-                            color: #FF353590;
+                            color: TI.display-dim;
                             horizontal-alignment: end;
                         }
                     }
@@ -265,7 +315,7 @@ export component AppWindow inherits Window {
                             text: (root.is-error ? "ERR " : "= ") + root.preview-result;
                             font-size: 28px;
                             font-weight: 800;
-                            color: root.is-error ? #FFA0A0 : #FF2020;
+                            color: root.is-error ? TI.display-error : TI.display-ink;
                             horizontal-alignment: end;
                             vertical-alignment: center;
                         }
@@ -274,7 +324,7 @@ export component AppWindow inherits Window {
                             text: root.expression == "" ? "0." : root.expression;
                             font-size: 28px;
                             font-weight: 800;
-                            color: #FF2020;
+                            color: TI.display-ink;
                             horizontal-alignment: end;
                             vertical-alignment: center;
                         }
@@ -293,11 +343,11 @@ export component AppWindow inherits Window {
                 spacing: 8px;
                 horizontal-stretch: 1;
                 vertical-stretch: 1;
-                TIDatamathKey { label: "sin"; base-color: #38281D; text-color: #E2DAC5; clicked => { root.press-key("sin("); } }
-                TIDatamathKey { label: "cos"; base-color: #38281D; text-color: #E2DAC5; clicked => { root.press-key("cos("); } }
-                TIDatamathKey { label: "tan"; base-color: #38281D; text-color: #E2DAC5; clicked => { root.press-key("tan("); } }
-                TIDatamathKey { label: "x²"; base-color: #38281D; text-color: #E2DAC5; clicked => { root.press-key("^2"); } }
-                TIDatamathKey { label: "√"; base-color: #38281D; text-color: #E2DAC5; clicked => { root.press-key("sqrt("); } }
+                TIDatamathKey { label: "sin"; base-color: TI.fn-key; text-color: TI.fn-ink; clicked => { root.press-key("sin("); } }
+                TIDatamathKey { label: "cos"; base-color: TI.fn-key; text-color: TI.fn-ink; clicked => { root.press-key("cos("); } }
+                TIDatamathKey { label: "tan"; base-color: TI.fn-key; text-color: TI.fn-ink; clicked => { root.press-key("tan("); } }
+                TIDatamathKey { label: "x²"; base-color: TI.fn-key; text-color: TI.fn-ink; clicked => { root.press-key("^2"); } }
+                TIDatamathKey { label: "√"; base-color: TI.fn-key; text-color: TI.fn-ink; clicked => { root.press-key("sqrt("); } }
             }
 
             // Row 2: Secondary ops & Clear
@@ -305,11 +355,11 @@ export component AppWindow inherits Window {
                 spacing: 8px;
                 horizontal-stretch: 1;
                 vertical-stretch: 1;
-                TIDatamathKey { label: "ln"; base-color: #38281D; text-color: #E2DAC5; clicked => { root.press-key("ln("); } }
-                TIDatamathKey { label: "log"; base-color: #38281D; text-color: #E2DAC5; clicked => { root.press-key("log("); } }
-                TIDatamathKey { label: "("; base-color: #38281D; text-color: #E2DAC5; clicked => { root.press-key("("); } }
-                TIDatamathKey { label: ")"; base-color: #38281D; text-color: #E2DAC5; clicked => { root.press-key(")"); } }
-                TIDatamathKey { label: "C"; base-color: #C01818; text-color: #FFFFFF; font-px: 18px; clicked => { root.press-key("AC"); } }
+                TIDatamathKey { label: "ln"; base-color: TI.fn-key; text-color: TI.fn-ink; clicked => { root.press-key("ln("); } }
+                TIDatamathKey { label: "log"; base-color: TI.fn-key; text-color: TI.fn-ink; clicked => { root.press-key("log("); } }
+                TIDatamathKey { label: "("; base-color: TI.fn-key; text-color: TI.fn-ink; clicked => { root.press-key("("); } }
+                TIDatamathKey { label: ")"; base-color: TI.fn-key; text-color: TI.fn-ink; clicked => { root.press-key(")"); } }
+                TIDatamathKey { label: "C"; base-color: TI.clear-key; text-color: #FFFFFF; font-px: 18px; clicked => { root.press-key("AC"); } }
             }
 
             // Row 3: 7 8 9 ÷ %
@@ -317,11 +367,11 @@ export component AppWindow inherits Window {
                 spacing: 8px;
                 horizontal-stretch: 1;
                 vertical-stretch: 1;
-                TIDatamathKey { label: "7"; base-color: #E8E2D2; text-color: #24170E; font-px: 20px; clicked => { root.press-key("7"); } }
-                TIDatamathKey { label: "8"; base-color: #E8E2D2; text-color: #24170E; font-px: 20px; clicked => { root.press-key("8"); } }
-                TIDatamathKey { label: "9"; base-color: #E8E2D2; text-color: #24170E; font-px: 20px; clicked => { root.press-key("9"); } }
-                TIDatamathKey { label: "÷"; base-color: #38281D; text-color: #FFFFFF; font-px: 20px; clicked => { root.press-key("÷"); } }
-                TIDatamathKey { label: "⌫"; base-color: #38281D; text-color: #FFFFFF; font-px: 16px; clicked => { root.press-key("BACKSPACE"); } }
+                TIDatamathKey { label: "7"; base-color: TI.num-key; text-color: TI.num-ink; font-px: 20px; clicked => { root.press-key("7"); } }
+                TIDatamathKey { label: "8"; base-color: TI.num-key; text-color: TI.num-ink; font-px: 20px; clicked => { root.press-key("8"); } }
+                TIDatamathKey { label: "9"; base-color: TI.num-key; text-color: TI.num-ink; font-px: 20px; clicked => { root.press-key("9"); } }
+                TIDatamathKey { label: "÷"; base-color: TI.fn-key; text-color: TI.op-ink; font-px: 20px; clicked => { root.press-key("÷"); } }
+                TIDatamathKey { label: "⌫"; base-color: TI.fn-key; text-color: TI.op-ink; font-px: 16px; clicked => { root.press-key("BACKSPACE"); } }
             }
 
             // Row 4: 4 5 6 × ^
@@ -329,11 +379,11 @@ export component AppWindow inherits Window {
                 spacing: 8px;
                 horizontal-stretch: 1;
                 vertical-stretch: 1;
-                TIDatamathKey { label: "4"; base-color: #E8E2D2; text-color: #24170E; font-px: 20px; clicked => { root.press-key("4"); } }
-                TIDatamathKey { label: "5"; base-color: #E8E2D2; text-color: #24170E; font-px: 20px; clicked => { root.press-key("5"); } }
-                TIDatamathKey { label: "6"; base-color: #E8E2D2; text-color: #24170E; font-px: 20px; clicked => { root.press-key("6"); } }
-                TIDatamathKey { label: "×"; base-color: #38281D; text-color: #FFFFFF; font-px: 20px; clicked => { root.press-key("×"); } }
-                TIDatamathKey { label: "1/x"; base-color: #38281D; text-color: #E2DAC5; clicked => { root.press-key("1/"); } }
+                TIDatamathKey { label: "4"; base-color: TI.num-key; text-color: TI.num-ink; font-px: 20px; clicked => { root.press-key("4"); } }
+                TIDatamathKey { label: "5"; base-color: TI.num-key; text-color: TI.num-ink; font-px: 20px; clicked => { root.press-key("5"); } }
+                TIDatamathKey { label: "6"; base-color: TI.num-key; text-color: TI.num-ink; font-px: 20px; clicked => { root.press-key("6"); } }
+                TIDatamathKey { label: "×"; base-color: TI.fn-key; text-color: TI.op-ink; font-px: 20px; clicked => { root.press-key("×"); } }
+                TIDatamathKey { label: "1/x"; base-color: TI.fn-key; text-color: TI.fn-ink; clicked => { root.press-key("1/"); } }
             }
 
             // Row 5: 1 2 3 − π
@@ -341,11 +391,11 @@ export component AppWindow inherits Window {
                 spacing: 8px;
                 horizontal-stretch: 1;
                 vertical-stretch: 1;
-                TIDatamathKey { label: "1"; base-color: #E8E2D2; text-color: #24170E; font-px: 20px; clicked => { root.press-key("1"); } }
-                TIDatamathKey { label: "2"; base-color: #E8E2D2; text-color: #24170E; font-px: 20px; clicked => { root.press-key("2"); } }
-                TIDatamathKey { label: "3"; base-color: #E8E2D2; text-color: #24170E; font-px: 20px; clicked => { root.press-key("3"); } }
-                TIDatamathKey { label: "−"; base-color: #38281D; text-color: #FFFFFF; font-px: 20px; clicked => { root.press-key("−"); } }
-                TIDatamathKey { label: "π"; base-color: #38281D; text-color: #E2DAC5; clicked => { root.press-key("π"); } }
+                TIDatamathKey { label: "1"; base-color: TI.num-key; text-color: TI.num-ink; font-px: 20px; clicked => { root.press-key("1"); } }
+                TIDatamathKey { label: "2"; base-color: TI.num-key; text-color: TI.num-ink; font-px: 20px; clicked => { root.press-key("2"); } }
+                TIDatamathKey { label: "3"; base-color: TI.num-key; text-color: TI.num-ink; font-px: 20px; clicked => { root.press-key("3"); } }
+                TIDatamathKey { label: "−"; base-color: TI.fn-key; text-color: TI.op-ink; font-px: 20px; clicked => { root.press-key("−"); } }
+                TIDatamathKey { label: "π"; base-color: TI.fn-key; text-color: TI.fn-ink; clicked => { root.press-key("π"); } }
             }
 
             // Row 6: 0 . +/- + =
@@ -353,11 +403,11 @@ export component AppWindow inherits Window {
                 spacing: 8px;
                 horizontal-stretch: 1;
                 vertical-stretch: 1;
-                TIDatamathKey { label: "0"; base-color: #E8E2D2; text-color: #24170E; font-px: 20px; clicked => { root.press-key("0"); } }
-                TIDatamathKey { label: "."; base-color: #E8E2D2; text-color: #24170E; font-px: 22px; clicked => { root.press-key("."); } }
-                TIDatamathKey { label: "%"; base-color: #38281D; text-color: #FFFFFF; font-px: 16px; clicked => { root.press-key("%"); } }
-                TIDatamathKey { label: "+"; base-color: #38281D; text-color: #FFFFFF; font-px: 20px; clicked => { root.press-key("+"); } }
-                TIDatamathKey { label: "="; base-color: #D67A20; text-color: #FFFFFF; font-px: 22px; clicked => { root.press-key("="); } }
+                TIDatamathKey { label: "0"; base-color: TI.num-key; text-color: TI.num-ink; font-px: 20px; clicked => { root.press-key("0"); } }
+                TIDatamathKey { label: "."; base-color: TI.num-key; text-color: TI.num-ink; font-px: 22px; clicked => { root.press-key("."); } }
+                TIDatamathKey { label: "%"; base-color: TI.fn-key; text-color: TI.op-ink; font-px: 16px; clicked => { root.press-key("%"); } }
+                TIDatamathKey { label: "+"; base-color: TI.fn-key; text-color: TI.op-ink; font-px: 20px; clicked => { root.press-key("+"); } }
+                TIDatamathKey { label: "="; base-color: TI.equals-key; text-color: #FFFFFF; font-px: 22px; clicked => { root.press-key("="); } }
             }
         }
     }

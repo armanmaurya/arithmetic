@@ -1,0 +1,464 @@
+// Four-shade green dot-matrix handheld. Operators live on the D-pad,
+// A = equals, B = clear, SELECT / START = brackets / backspace.
+
+// Colour themes (ids match manifest.json)
+global Handheld {
+    in-out property <string> color-theme: "classic";
+    property <bool> pocket: color-theme == "pocket";
+    property <bool> berry: color-theme == "berry";
+
+    out property <color> shell-top: pocket ? #CDD0D5 : (berry ? #8E43AC : #D6D4CB);
+    out property <color> shell-bottom: pocket ? #AEB2B8 : (berry ? #6C2A88 : #C4C2B8);
+    out property <color> seam: pocket ? #9A9EA5 : (berry ? #5A2173 : #A9A79C);
+    out property <color> label: pocket ? #5A5E66 : (berry ? #E6CDF2 : #6A6C76);
+    out property <color> brand: pocket ? #33363D : (berry ? #FFE1F4 : #2B2F86);
+    out property <color> bezel: pocket ? #3E4048 : (berry ? #2E2A33 : #4E5160);
+    out property <color> bezel-label: pocket ? #8D9098 : (berry ? #A99DB5 : #9A9CA8);
+    out property <color> lcd: pocket ? #B9BDAA : #9BBC0F;
+    out property <color> lcd-grid: pocket ? #A6AA9850 : #8BAC0F50;
+    out property <color> lcd-mid: pocket ? #5B5E52 : #306230;
+    out property <color> lcd-dark: pocket ? #24261F : #0F380F;
+    out property <color> pad: pocket ? #2C2E33 : (berry ? #2A2430 : #26282E);
+    out property <color> pad-ink: pocket ? #9A9DA4 : (berry ? #A79AB3 : #8E9099);
+    out property <color> ab: pocket ? #3A3D45 : (berry ? #3B3541 : #9A2257);
+    out property <color> ab-ink: pocket ? #D9DBE0 : (berry ? #E2D4EE : #F2C9DA);
+    out property <color> pill: pocket ? #6E7179 : (berry ? #3B3541 : #7C7E88);
+    out property <color> rubber: pocket ? #9EA2A9 : (berry ? #B59CC6 : #A6A8B0);
+    out property <color> rubber-ink: pocket ? #24262B : (berry ? #2A1F33 : #2E3038);
+}
+
+component PadArm inherits Rectangle {
+    in property <string> label;
+    callback clicked <=> touch.clicked;
+
+    background: touch.pressed ? Handheld.pad.darker(40%) : Handheld.pad;
+    border-radius: 3px;
+
+    Text {
+        text: root.label;
+        color: Handheld.pad-ink;
+        font-size: 18px;
+        font-weight: 800;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+component RoundButton inherits Rectangle {
+    in property <string> label;
+    in property <string> caption;
+    callback clicked <=> touch.clicked;
+
+    width: 58px;
+    height: 58px;
+
+    Rectangle {
+        y: touch.pressed ? 2px : 0px;
+        width: 58px;
+        height: 58px;
+        border-radius: 29px;
+        background: touch.pressed ? Handheld.ab.darker(30%) : Handheld.ab;
+        drop-shadow-blur: touch.pressed ? 1px : 4px;
+        drop-shadow-offset-y: touch.pressed ? 1px : 3px;
+        drop-shadow-color: #00000070;
+
+        Text {
+            text: root.label;
+            color: Handheld.ab-ink;
+            font-size: 22px;
+            font-weight: 800;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Text {
+        y: 62px;
+        width: 58px;
+        text: root.caption;
+        color: Handheld.brand;
+        font-size: 11px;
+        font-weight: 800;
+        horizontal-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+component PillButton inherits Rectangle {
+    in property <string> label;
+    in property <string> caption;
+    callback clicked <=> touch.clicked;
+
+    width: 52px;
+    height: 34px;
+
+    Rectangle {
+        y: 0;
+        height: 12px;
+        border-radius: 6px;
+        background: touch.pressed ? Handheld.pill.darker(25%) : Handheld.pill;
+        transform-rotation: -25deg;
+    }
+
+    Text {
+        y: 16px;
+        text: root.caption;
+        color: Handheld.brand;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        horizontal-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+component RubberKey inherits Rectangle {
+    in property <string> label;
+    callback clicked <=> touch.clicked;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+    // Equal key widths regardless of label length
+    min-width: 10px;
+    preferred-width: 10px;
+
+    border-radius: 8px;
+    background: touch.pressed ? Handheld.rubber.darker(15%) : (touch.has-hover ? Handheld.rubber.brighter(8%) : Handheld.rubber);
+    drop-shadow-offset-y: touch.pressed ? 0px : 2px;
+    drop-shadow-color: #00000055;
+
+    Text {
+        text: root.label;
+        color: Handheld.rubber-ink;
+        font-family: "monospace";
+        font-size: 17px;
+        font-weight: 800;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Retro Handheld";
+    preferred-width: 380px;
+    preferred-height: 720px;
+    min-width: 380px;
+    max-width: 380px;
+    min-height: 720px;
+    max-height: 720px;
+    background: @linear-gradient(170deg, Handheld.shell-top 0%, Handheld.shell-bottom 100%);
+
+    in-out property <string> expression: "";
+    in-out property <string> preview-result: "";
+    in-out property <bool> is-error: false;
+    in-out property <bool> use-radians: false;
+    in-out property <string> color-theme <=> Handheld.color-theme;
+
+    callback press-key(string);
+    callback toggle-angle-unit();
+    callback open-skin-dialog();
+
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) { root.press-key("="); return accept; }
+            if (event.text == Key.Backspace) { root.press-key("BACKSPACE"); return accept; }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") { root.press-key("AC"); return accept; }
+            if (event.text == "t" || event.text == "T" || event.text == Key.F2) { root.open-skin-dialog(); return accept; }
+            return reject;
+        }
+    }
+
+    // Top shell seam
+    Rectangle {
+        x: 0;
+        y: 26px;
+        width: root.width;
+        height: 1px;
+        background: Handheld.seam;
+    }
+
+    // Header row: angle switch & theme switch styled as shell labels
+    HorizontalLayout {
+        x: 16px;
+        y: 4px;
+        width: root.width - 32px;
+        height: 20px;
+        spacing: 14px;
+
+        Text {
+            text: root.use-radians ? "◀ RAD ▶" : "◀ DEG ▶";
+            color: Handheld.label;
+            font-size: 10px;
+            font-weight: 800;
+            vertical-alignment: center;
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.toggle-angle-unit(); }
+            }
+        }
+        Rectangle { horizontal-stretch: 1; }
+        Text {
+            text: "THEMES ▸";
+            color: Handheld.label;
+            font-size: 10px;
+            font-weight: 800;
+            vertical-alignment: center;
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.open-skin-dialog(); }
+            }
+        }
+    }
+
+    // Screen bezel
+    Rectangle {
+        x: 22px;
+        y: 40px;
+        width: root.width - 44px;
+        height: 214px;
+        background: Handheld.bezel;
+        border-radius: 10px;
+        border-bottom-right-radius: 44px;
+
+        // Power LED
+        Rectangle {
+            x: 12px;
+            y: 84px;
+            width: 9px;
+            height: 9px;
+            border-radius: 4.5px;
+            background: #FF2E2E;
+            drop-shadow-blur: 6px;
+            drop-shadow-color: #FF2E2EAA;
+        }
+        Text {
+            x: 6px;
+            y: 98px;
+            text: "POWER";
+            color: Handheld.bezel-label;
+            font-size: 7px;
+        }
+
+        // Dot-matrix LCD
+        Rectangle {
+            x: 44px;
+            y: 18px;
+            width: parent.width - 88px;
+            height: 160px;
+            background: Handheld.lcd;
+            clip: true;
+
+            // Pixel grid texture
+            for i in 40: Rectangle {
+                x: i * 6px;
+                y: 0;
+                width: 1px;
+                height: parent.height;
+                background: Handheld.lcd-grid;
+            }
+            for i in 27: Rectangle {
+                x: 0;
+                y: i * 6px;
+                width: parent.width;
+                height: 1px;
+                background: Handheld.lcd-grid;
+            }
+
+            VerticalLayout {
+                padding: 10px;
+                spacing: 4px;
+
+                Text {
+                    text: "CALC.EXE";
+                    color: Handheld.lcd-mid;
+                    font-family: "monospace";
+                    font-size: 11px;
+                    font-weight: 800;
+                }
+                Rectangle { vertical-stretch: 1; }
+                Text {
+                    text: root.expression == "" ? "0" : root.expression;
+                    color: Handheld.lcd-dark;
+                    font-family: "monospace";
+                    font-size: root.expression.character-count > 11 ? 18px : 26px;
+                    font-weight: 900;
+                    horizontal-alignment: right;
+                    overflow: elide;
+                }
+                Rectangle {
+                    height: 2px;
+                    background: Handheld.lcd-mid;
+                }
+                Text {
+                    text: root.preview-result == "" ? " " : (root.is-error ? "ERR:" + root.preview-result : "=" + root.preview-result);
+                    color: root.is-error ? Handheld.lcd-dark : Handheld.lcd-mid;
+                    font-family: "monospace";
+                    font-size: 16px;
+                    font-weight: 800;
+                    horizontal-alignment: right;
+                }
+            }
+        }
+
+        Text {
+            x: 44px;
+            y: 186px;
+            text: "DOT-MATRIX CALCULATOR";
+            color: Handheld.bezel-label;
+            font-size: 9px;
+            font-italic: true;
+            font-weight: 700;
+        }
+    }
+
+    // Brand
+    Text {
+        x: 24px;
+        y: 264px;
+        text: "PocketCalc";
+        color: Handheld.brand;
+        font-size: 20px;
+        font-italic: true;
+        font-weight: 900;
+    }
+
+    // D-pad: up +, down −, left ×, right ÷
+    Rectangle {
+        x: 26px;
+        y: 304px;
+        width: 120px;
+        height: 120px;
+
+        PadArm { x: 40px; y: 0px; width: 40px; height: 44px; label: "+"; clicked => { root.press-key("+"); } }
+        PadArm { x: 40px; y: 76px; width: 40px; height: 44px; label: "−"; clicked => { root.press-key("−"); } }
+        PadArm { x: 0px; y: 40px; width: 44px; height: 40px; label: "×"; clicked => { root.press-key("×"); } }
+        PadArm { x: 76px; y: 40px; width: 44px; height: 40px; label: "÷"; clicked => { root.press-key("÷"); } }
+        // Centre hub
+        Rectangle {
+            x: 40px;
+            y: 40px;
+            width: 40px;
+            height: 40px;
+            background: Handheld.pad;
+            Rectangle {
+                x: 12px;
+                y: 12px;
+                width: 16px;
+                height: 16px;
+                border-radius: 8px;
+                background: Handheld.pad.darker(30%);
+            }
+        }
+    }
+
+    // A / B buttons
+    RoundButton {
+        x: root.width - 92px;
+        y: 310px;
+        label: "=";
+        caption: "A";
+        clicked => { root.press-key("="); }
+    }
+    RoundButton {
+        x: root.width - 162px;
+        y: 344px;
+        label: "C";
+        caption: "B";
+        clicked => { root.press-key("AC"); }
+    }
+
+    // SELECT / START
+    PillButton {
+        x: 120px;
+        y: 444px;
+        caption: "( )";
+        clicked => { root.press-key("()"); }
+    }
+    PillButton {
+        x: 190px;
+        y: 444px;
+        caption: "DEL";
+        clicked => { root.press-key("BACKSPACE"); }
+    }
+
+    // Rubber number pad
+    VerticalLayout {
+        x: 26px;
+        y: 494px;
+        width: root.width - 52px;
+        height: 196px;
+        spacing: 8px;
+
+        HorizontalLayout {
+            spacing: 8px;
+            RubberKey { label: "7"; clicked => { root.press-key("7"); } }
+            RubberKey { label: "8"; clicked => { root.press-key("8"); } }
+            RubberKey { label: "9"; clicked => { root.press-key("9"); } }
+            RubberKey { label: "√"; clicked => { root.press-key("√("); } }
+            RubberKey { label: "^"; clicked => { root.press-key("^"); } }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            RubberKey { label: "4"; clicked => { root.press-key("4"); } }
+            RubberKey { label: "5"; clicked => { root.press-key("5"); } }
+            RubberKey { label: "6"; clicked => { root.press-key("6"); } }
+            RubberKey { label: "sin"; clicked => { root.press-key("sin("); } }
+            RubberKey { label: "π"; clicked => { root.press-key("π"); } }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            RubberKey { label: "1"; clicked => { root.press-key("1"); } }
+            RubberKey { label: "2"; clicked => { root.press-key("2"); } }
+            RubberKey { label: "3"; clicked => { root.press-key("3"); } }
+            RubberKey { label: "cos"; clicked => { root.press-key("cos("); } }
+            RubberKey { label: "%"; clicked => { root.press-key("%"); } }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            RubberKey { label: "0"; horizontal-stretch: 2; clicked => { root.press-key("0"); } }
+            RubberKey { label: "."; clicked => { root.press-key("."); } }
+            RubberKey { label: "tan"; clicked => { root.press-key("tan("); } }
+            RubberKey { label: "ln"; clicked => { root.press-key("ln("); } }
+        }
+    }
+
+    // Speaker grille
+    for i in 6: Rectangle {
+        x: root.width - 96px + i * 12px;
+        y: 440px;
+        width: 5px;
+        height: 40px;
+        border-radius: 2.5px;
+        background: Handheld.seam;
+        transform-rotation: -25deg;
+    }
+}

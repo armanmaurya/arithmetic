@@ -1,0 +1,48 @@
+{
+  "id": "minimal-mono",
+  "name": "Minimal Mono",
+  "version": "1.0.0",
+  "author": "Arithmetic Team",
+  "description": "Swiss-style type with no borders or shadows",
+  "preview": "previews/light.png",
+  "default_layout": "standard",
+  "layouts": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 380.0,
+      "height": 640.0
+    }
+  ],
+  "default_color_theme": "light",
+  "color_themes": [
+    {
+      "id": "light",
+      "name": "Light",
+      "swatch": [
+        "#FFFFFF",
+        "#000000"
+      ],
+      "preview": "previews/light.png"
+    },
+    {
+      "id": "dark",
+      "name": "Dark",
+      "swatch": [
+        "#000000",
+        "#FFFFFF"
+      ],
+      "preview": "previews/dark.png"
+    },
+    {
+      "id": "red",
+      "name": "Swiss Red",
+      "swatch": [
+        "#E1251B",
+        "#FFFFFF"
+      ],
+      "preview": "previews/red.png"
+    }
+  ]
+}

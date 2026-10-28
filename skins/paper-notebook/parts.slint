@@ -1,0 +1,149 @@
+// Pieces shared by this skin's layouts (skin.slint, compact.slint, wide.slint).
+// Hand-inked keys on paper: each key is tilted slightly so the page looks
+// sketched rather than ruled.
+
+// Colour themes (ids match manifest.json)
+export global Paper {
+    in-out property <string> color-theme: "graph";
+    property <bool> legal: color-theme == "legal-pad";
+    property <bool> blueprint: color-theme == "blueprint";
+
+    out property <color> sheet: legal ? #FCF3A8 : (blueprint ? #1F4E8C : #FBF8EE);
+    // Legal pads are ruled horizontally only
+    out property <color> grid-v: legal ? transparent : (blueprint ? #FFFFFF22 : #9CC3E640);
+    out property <color> grid-h: legal ? #7FA6D680 : (blueprint ? #FFFFFF22 : #9CC3E640);
+    out property <color> margin: legal ? #E5737399 : (blueprint ? #FFFFFF55 : #E5737380);
+    out property <color> ink: legal ? #1C1C1C : (blueprint ? #F2F7FF : #24357A);
+    out property <color> heavy-ink: legal ? #000000 : (blueprint ? #FFFFFF : #1B2A5E);
+    out property <color> fn-ink: legal ? #3B5BA9 : (blueprint ? #A8D4FF : #6A4C93);
+    out property <color> red-ink: legal ? #C62828 : (blueprint ? #FFB4A8 : #C0392B);
+    out property <color> green-ink: legal ? #2E7D32 : (blueprint ? #B9F6CA : #2E7D32);
+    out property <color> highlight: legal ? #FF8FB1AA : (blueprint ? #FFFFFF40 : #FFE66DAA);
+    out property <color> binding: legal ? #8A7A3A : (blueprint ? #0F2F5A : #8C8C8C);
+}
+
+export component InkKey inherits Rectangle {
+    in property <string> label;
+    in property <color> ink: Paper.ink;
+    in property <angle> tilt: 0deg;
+    in property <length> font-px: 22px;
+    in property <bool> circled: false;
+    in property <bool> italic: true;
+    callback clicked <=> touch.clicked;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+    // Equal key widths regardless of label length
+    min-width: 10px;
+    preferred-width: 10px;
+
+    // Pencil "shadow" stroke, offset like a second pass of the pen
+    Rectangle {
+        x: 2px;
+        y: 2px;
+        border-radius: root.circled ? min(self.width, self.height) / 2 : 9px;
+        border-width: 1px;
+        border-color: root.ink.with-alpha(0.35);
+        transform-rotation: root.tilt * -1.6;
+    }
+
+    Rectangle {
+        border-radius: root.circled ? min(self.width, self.height) / 2 : 8px;
+        border-width: 2px;
+        border-color: root.ink;
+        background: touch.pressed ? Paper.highlight : (touch.has-hover ? Paper.highlight.with-alpha(0.35) : transparent);
+        transform-rotation: root.tilt;
+
+        Text {
+            text: root.label;
+            color: root.ink;
+            font-size: root.font-px;
+            font-italic: root.italic;
+            font-weight: root.italic ? 600 : 300;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+export component Scribble inherits Text {
+    callback clicked <=> touch.clicked;
+
+    color: touch.has-hover ? Paper.red-ink : Paper.ink;
+    font-size: 13px;
+    font-italic: true;
+    vertical-alignment: center;
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+// Ruled/graph background with an optional red margin line.
+export component PaperSheet inherits Rectangle {
+    in property <length> margin-x: 38px;
+    in property <bool> show-margin: true;
+
+    background: Paper.sheet;
+    clip: true;
+
+    for i in 48: Rectangle {
+        x: i * 20px;
+        y: 0;
+        width: 1px;
+        height: root.height;
+        background: Paper.grid-v;
+    }
+    for i in 40: Rectangle {
+        x: 0;
+        y: i * 20px;
+        width: root.width;
+        height: 1px;
+        background: Paper.grid-h;
+    }
+    if root.show-margin: Rectangle {
+        x: root.margin-x;
+        y: 0;
+        width: 2px;
+        height: root.height;
+        background: Paper.margin;
+    }
+}
+
+// The written working: expression, underline, result.
+export component Working inherits VerticalLayout {
+    in property <string> expression;
+    in property <string> preview-result;
+    in property <bool> is-error;
+    in property <length> big-px: 40px;
+    in property <length> small-px: 28px;
+    in property <length> result-px: 20px;
+
+    alignment: end;
+    spacing: 2px;
+
+    Text {
+        text: root.expression == "" ? "0" : root.expression;
+        color: Paper.heavy-ink;
+        font-size: root.expression.character-count > 14 ? root.small-px : root.big-px;
+        font-italic: true;
+        horizontal-alignment: right;
+        overflow: elide;
+    }
+    Rectangle {
+        height: 2px;
+        background: Paper.ink;
+    }
+    Text {
+        text: root.preview-result == "" ? " " : (root.is-error ? "✗ " + root.preview-result : "= " + root.preview-result);
+        color: root.is-error ? Paper.red-ink : Paper.green-ink;
+        font-size: root.result-px;
+        font-italic: true;
+        font-weight: 600;
+        horizontal-alignment: right;
+    }
+}

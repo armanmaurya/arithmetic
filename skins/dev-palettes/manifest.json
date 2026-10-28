@@ -1,0 +1,81 @@
+{
+  "id": "dev-palettes",
+  "name": "Dev Palettes",
+  "version": "1.0.0",
+  "author": "Arithmetic Team",
+  "description": "Popular code editor colour schemes",
+  "preview": "previews/nord.png",
+  "default_layout": "standard",
+  "layouts": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 380.0,
+      "height": 640.0
+    }
+  ],
+  "default_color_theme": "nord",
+  "color_themes": [
+    {
+      "id": "nord",
+      "name": "Nord",
+      "swatch": [
+        "#2E3440",
+        "#88C0D0",
+        "#A3BE8C"
+      ],
+      "preview": "previews/nord.png"
+    },
+    {
+      "id": "mocha",
+      "name": "Catppuccin Mocha",
+      "swatch": [
+        "#1E1E2E",
+        "#CBA6F7",
+        "#A6E3A1"
+      ],
+      "preview": "previews/mocha.png"
+    },
+    {
+      "id": "latte",
+      "name": "Catppuccin Latte",
+      "swatch": [
+        "#EFF1F5",
+        "#8839EF",
+        "#40A02B"
+      ],
+      "preview": "previews/latte.png"
+    },
+    {
+      "id": "gruvbox",
+      "name": "Gruvbox",
+      "swatch": [
+        "#282828",
+        "#FE8019",
+        "#B8BB26"
+      ],
+      "preview": "previews/gruvbox.png"
+    },
+    {
+      "id": "dracula",
+      "name": "Dracula",
+      "swatch": [
+        "#282A36",
+        "#BD93F9",
+        "#50FA7B"
+      ],
+      "preview": "previews/dracula.png"
+    },
+    {
+      "id": "tokyo-night",
+      "name": "Tokyo Night",
+      "swatch": [
+        "#1A1B26",
+        "#BB9AF7",
+        "#9ECE6A"
+      ],
+      "preview": "previews/tokyo-night.png"
+    }
+  ]
+}

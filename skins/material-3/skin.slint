@@ -1,205 +1,41 @@
-export struct HistoryEntry {
-    expression: string,
-    result: string,
-    timestamp: string,
-}
+import { M3Calculator, HistoryEntry } from "calculator.slint";
 
-component M3Btn inherits Rectangle {
-    in property <string> label;
-    in property <color> bg: #2B2930;
-    in property <color> fg: #E6E1E5;
-    in property <length> font-px: 24px;
-    in property <bool> bold: false;
-    callback clicked <=> touch.clicked;
-
-    horizontal-stretch: 1;
-    vertical-stretch: 1;
-
-    border-radius: self.height / 2;
-    background: touch.pressed ? root.bg.darker(15%) : (touch.has-hover ? root.bg.brighter(15%) : root.bg);
-    animate background { duration: 150ms; }
-
-    Text {
-        text: root.label;
-        color: root.fg;
-        font-size: root.font-px;
-        font-weight: root.bold ? 700 : 500;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-
-    touch := TouchArea {
-        mouse-cursor: pointer;
-    }
-}
+export { HistoryEntry }
 
 export component AppWindow inherits Window {
-    title: "Arithmetic (Material 3)";
+    title: "Arithmetic";
     preferred-width: 412px;
     preferred-height: 780px;
     min-width: 412px;
     max-width: 412px;
     min-height: 780px;
     max-height: 780px;
-    background: #141218;
 
-    in-out property <string> expression: "";
-    in-out property <int> cursor-byte-offset: 0;
-    in-out property <string> preview-result: "";
-    in-out property <bool> is-error: false;
-    in-out property <bool> use-radians: false;
-    in-out property <[HistoryEntry]> history: [];
+    in-out property <string> expression <=> calc.expression;
+    in-out property <int> cursor-byte-offset <=> calc.cursor-byte-offset;
+    in-out property <string> preview-result <=> calc.preview-result;
+    in-out property <bool> is-error <=> calc.is-error;
+    in-out property <bool> just-evaluated <=> calc.just-evaluated;
+    in-out property <bool> use-radians <=> calc.use-radians;
+    in-out property <[HistoryEntry]> history <=> calc.history;
+    in-out property <length> expr-scroll-offset <=> calc.expr-scroll-offset;
+    in-out property <string> color-theme <=> calc.color-theme;
 
-    callback press-key(string);
-    callback expression-edited();
-    callback toggle-angle-unit();
-    callback clear-history();
-    callback select-history-item(string);
-    callback switch-skin(string);
-    callback open-skin-dialog();
+    callback press-key <=> calc.press-key;
+    callback expression-edited <=> calc.expression-edited;
+    callback toggle-angle-unit <=> calc.toggle-angle-unit;
+    callback clear-history <=> calc.clear-history;
+    callback select-history-item <=> calc.select-history-item;
+    callback set-color-theme <=> calc.set-color-theme;
+    callback open-skin-dialog <=> calc.open-skin-dialog;
 
-    VerticalLayout {
-        padding: 16px;
-        spacing: 12px;
+    public function set-cursor(pos: int) {
+        calc.set-cursor(pos);
+    }
 
-        // Top App Bar
-        HorizontalLayout {
-            height: 40px;
-            alignment: space-between;
-
-            // DEG / RAD Chip
-            Rectangle {
-                width: 64px;
-                height: 32px;
-                border-radius: 8px;
-                background: #2B2930;
-                Text {
-                    text: root.use-radians ? "RAD" : "DEG";
-                    color: #D0BCFF;
-                    font-size: 13px;
-                    font-weight: 700;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-                TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => { root.toggle-angle-unit(); }
-                }
-            }
-
-            // Theme Selection Button
-            Rectangle {
-                width: 40px;
-                height: 40px;
-                border-radius: 20px;
-                background: theme-touch.has-hover ? #E6E1E515 : transparent;
-                Text {
-                    text: "🎨";
-                    font-size: 18px;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-                theme-touch := TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => { root.open-skin-dialog(); }
-                }
-            }
-        }
-
-        // Display Surface Container
-        Rectangle {
-            height: 180px;
-            border-radius: 24px;
-            background: #1D1B20;
-            clip: true;
-
-            VerticalLayout {
-                padding-left: 20px;
-                padding-right: 20px;
-                padding-top: 16px;
-                padding-bottom: 16px;
-                alignment: space-between;
-
-                // Expression Line
-                HorizontalLayout {
-                    alignment: end;
-                    Text {
-                        text: root.expression == "" ? "0" : root.expression;
-                        font-size: 32px;
-                        font-weight: 400;
-                        color: #E6E1E5;
-                        horizontal-alignment: end;
-                    }
-                }
-
-                // Live Preview / Result Line
-                HorizontalLayout {
-                    alignment: end;
-                    if root.preview-result != "": Text {
-                        text: "= " + root.preview-result;
-                        font-size: 28px;
-                        font-weight: 600;
-                        color: root.is-error ? #F2B8B5 : #D0BCFF;
-                        horizontal-alignment: end;
-                    }
-                }
-            }
-        }
-
-        // Keypad Grid
-        VerticalLayout {
-            spacing: 10px;
-            vertical-stretch: 1;
-
-            // Row 1: AC, (), %, ÷
-            HorizontalLayout {
-                spacing: 10px;
-                vertical-stretch: 1;
-                M3Btn { label: "AC"; bg: #4A4458; fg: #E8DEF8; font-px: 20px; bold: true; clicked => { root.press-key("AC"); } }
-                M3Btn { label: "( )"; bg: #4A4458; fg: #E8DEF8; font-px: 20px; clicked => { root.press-key("()"); } }
-                M3Btn { label: "%"; bg: #4A4458; fg: #E8DEF8; font-px: 20px; clicked => { root.press-key("%"); } }
-                M3Btn { label: "÷"; bg: #D0BCFF; fg: #381E72; font-px: 28px; bold: true; clicked => { root.press-key("÷"); } }
-            }
-
-            // Row 2: 7, 8, 9, ×
-            HorizontalLayout {
-                spacing: 10px;
-                vertical-stretch: 1;
-                M3Btn { label: "7"; clicked => { root.press-key("7"); } }
-                M3Btn { label: "8"; clicked => { root.press-key("8"); } }
-                M3Btn { label: "9"; clicked => { root.press-key("9"); } }
-                M3Btn { label: "×"; bg: #D0BCFF; fg: #381E72; font-px: 28px; bold: true; clicked => { root.press-key("×"); } }
-            }
-
-            // Row 3: 4, 5, 6, −
-            HorizontalLayout {
-                spacing: 10px;
-                vertical-stretch: 1;
-                M3Btn { label: "4"; clicked => { root.press-key("4"); } }
-                M3Btn { label: "5"; clicked => { root.press-key("5"); } }
-                M3Btn { label: "6"; clicked => { root.press-key("6"); } }
-                M3Btn { label: "−"; bg: #D0BCFF; fg: #381E72; font-px: 28px; bold: true; clicked => { root.press-key("−"); } }
-            }
-
-            // Row 4: 1, 2, 3, +
-            HorizontalLayout {
-                spacing: 10px;
-                vertical-stretch: 1;
-                M3Btn { label: "1"; clicked => { root.press-key("1"); } }
-                M3Btn { label: "2"; clicked => { root.press-key("2"); } }
-                M3Btn { label: "3"; clicked => { root.press-key("3"); } }
-                M3Btn { label: "+"; bg: #D0BCFF; fg: #381E72; font-px: 28px; bold: true; clicked => { root.press-key("+"); } }
-            }
-
-            // Row 5: 0, ., ⌫, =
-            HorizontalLayout {
-                spacing: 10px;
-                vertical-stretch: 1;
-                M3Btn { label: "0"; clicked => { root.press-key("0"); } }
-                M3Btn { label: "."; font-px: 28px; bold: true; clicked => { root.press-key("."); } }
-                M3Btn { label: "⌫"; bg: #4A4458; fg: #E8DEF8; font-px: 20px; clicked => { root.press-key("BACKSPACE"); } }
-                M3Btn { label: "="; bg: #4F378B; fg: #FFFFFF; font-px: 30px; bold: true; clicked => { root.press-key("="); } }
-            }
-        }
+    forward-focus: calc;
+    calc := M3Calculator {
+        width: 100%;
+        height: 100%;
     }
 }

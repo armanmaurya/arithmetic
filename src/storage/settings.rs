@@ -1,35 +1,47 @@
 use crate::core::paths::{app_config_dir, config_file_path};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
+
+/// The layout and colour theme last used with a skin.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct SkinPrefs {
+    #[serde(default)]
+    pub layout: String,
+    #[serde(default)]
+    pub color_theme: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     #[serde(default = "default_active_skin")]
     pub active_skin: String,
-    #[serde(default = "default_active_variant")]
-    pub active_variant: String,
-    #[serde(default = "default_theme_mode")]
-    pub theme_mode: i32,
+    #[serde(default)]
+    pub skin_prefs: BTreeMap<String, SkinPrefs>,
+}
+
+impl AppSettings {
+    /// Remembered layout and colour theme for a skin (empty fields mean "use the skin's default").
+    pub fn prefs_for(&self, skin_id: &str) -> SkinPrefs {
+        self.skin_prefs.get(skin_id).cloned().unwrap_or_default()
+    }
+
+    pub fn set_active(&mut self, skin_id: &str, prefs: SkinPrefs) {
+        self.active_skin = skin_id.to_string();
+        self.skin_prefs.insert(skin_id.to_string(), prefs);
+    }
 }
 
 fn default_active_skin() -> String {
     "".to_string()
 }
 
-fn default_active_variant() -> String {
-    "".to_string()
-}
-
-fn default_theme_mode() -> i32 {
-    2
-}
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
             active_skin: default_active_skin(),
-            active_variant: default_active_variant(),
-            theme_mode: default_theme_mode(),
+            skin_prefs: BTreeMap::new(),
         }
     }
 }

@@ -1,0 +1,138 @@
+// Standard layout: a portrait notebook page.
+import { Paper, InkKey, Scribble, PaperSheet, Working } from "parts.slint";
+
+export component AppWindow inherits Window {
+    title: "Paper Notebook";
+    preferred-width: 400px;
+    preferred-height: 680px;
+    min-width: 400px;
+    max-width: 400px;
+    min-height: 680px;
+    max-height: 680px;
+    background: Paper.sheet;
+
+    in-out property <string> expression: "";
+    in-out property <string> preview-result: "";
+    in-out property <bool> is-error: false;
+    in-out property <bool> use-radians: false;
+    in-out property <string> color-theme <=> Paper.color-theme;
+
+    callback press-key(string);
+    callback toggle-angle-unit();
+    callback open-skin-dialog();
+
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) { root.press-key("="); return accept; }
+            if (event.text == Key.Backspace) { root.press-key("BACKSPACE"); return accept; }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") { root.press-key("AC"); return accept; }
+            if (event.text == "t" || event.text == "T" || event.text == Key.F2) { root.open-skin-dialog(); return accept; }
+            return reject;
+        }
+    }
+
+    PaperSheet {
+        width: root.width;
+        height: root.height;
+    }
+
+    VerticalLayout {
+        padding: 18px;
+        padding-left: 52px;
+        spacing: 12px;
+
+        HorizontalLayout {
+            height: 26px;
+            spacing: 16px;
+
+            Text {
+                text: "Maths homework";
+                color: Paper.ink;
+                font-size: 17px;
+                font-italic: true;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Scribble {
+                text: root.use-radians ? "(rad)" : "(deg)";
+                clicked => { root.toggle-angle-unit(); }
+            }
+            Scribble {
+                text: "themes →";
+                clicked => { root.open-skin-dialog(); }
+            }
+        }
+
+        // Written working area
+        Working {
+            height: 120px;
+            expression: root.expression;
+            preview-result: root.preview-result;
+            is-error: root.is-error;
+        }
+
+        VerticalLayout {
+            spacing: 12px;
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                spacing: 12px;
+                InkKey { label: "sin"; font-px: 16px; ink: Paper.fn-ink; tilt: -1.5deg; clicked => { root.press-key("sin("); } }
+                InkKey { label: "cos"; font-px: 16px; ink: Paper.fn-ink; tilt: 1deg; clicked => { root.press-key("cos("); } }
+                InkKey { label: "√"; font-px: 18px; ink: Paper.fn-ink; tilt: -0.5deg; clicked => { root.press-key("√("); } }
+                InkKey { label: "xʸ"; font-px: 18px; ink: Paper.fn-ink; tilt: 1.8deg; clicked => { root.press-key("^"); } }
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                InkKey { label: "AC"; ink: Paper.red-ink; tilt: 1.2deg; circled: true; clicked => { root.press-key("AC"); } }
+                InkKey { label: "⌫"; tilt: -1deg; clicked => { root.press-key("BACKSPACE"); } }
+                InkKey { label: "( )"; tilt: 0.6deg; clicked => { root.press-key("()"); } }
+                InkKey { label: "÷"; font-px: 28px; italic: false; tilt: -1.6deg; circled: true; clicked => { root.press-key("÷"); } }
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                InkKey { label: "7"; tilt: -0.8deg; clicked => { root.press-key("7"); } }
+                InkKey { label: "8"; tilt: 1.4deg; clicked => { root.press-key("8"); } }
+                InkKey { label: "9"; tilt: -1.2deg; clicked => { root.press-key("9"); } }
+                InkKey { label: "×"; font-px: 28px; italic: false; tilt: 1deg; circled: true; clicked => { root.press-key("×"); } }
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                InkKey { label: "4"; tilt: 1.6deg; clicked => { root.press-key("4"); } }
+                InkKey { label: "5"; tilt: -0.4deg; clicked => { root.press-key("5"); } }
+                InkKey { label: "6"; tilt: 1deg; clicked => { root.press-key("6"); } }
+                InkKey { label: "−"; font-px: 28px; italic: false; tilt: -1.4deg; circled: true; clicked => { root.press-key("−"); } }
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                InkKey { label: "1"; tilt: -1.6deg; clicked => { root.press-key("1"); } }
+                InkKey { label: "2"; tilt: 0.8deg; clicked => { root.press-key("2"); } }
+                InkKey { label: "3"; tilt: -0.6deg; clicked => { root.press-key("3"); } }
+                InkKey { label: "+"; font-px: 28px; italic: false; tilt: 1.5deg; circled: true; clicked => { root.press-key("+"); } }
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                InkKey { label: "0"; tilt: 1deg; clicked => { root.press-key("0"); } }
+                InkKey { label: "."; font-px: 26px; tilt: -1.2deg; clicked => { root.press-key("."); } }
+                InkKey { label: "%"; tilt: 0.5deg; clicked => { root.press-key("%"); } }
+                InkKey { label: "="; font-px: 26px; ink: Paper.green-ink; tilt: -1deg; circled: true; clicked => { root.press-key("="); } }
+            }
+        }
+    }
+}

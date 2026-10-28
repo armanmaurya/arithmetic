@@ -1,0 +1,272 @@
+// Colour themes (ids match manifest.json)
+global Neon {
+    in-out property <string> color-theme: "neon";
+    property <bool> vapor: color-theme == "vaporwave";
+    property <bool> toxic: color-theme == "toxic";
+
+    out property <color> primary: vapor ? #FF71CE : (toxic ? #39FF14 : #FF2BD6);
+    out property <color> secondary: vapor ? #01CDFE : (toxic ? #E4FF1A : #00F0FF);
+    out property <color> warn: vapor ? #B967FF : (toxic ? #00FFC6 : #FFB000);
+    out property <color> go: vapor ? #05FFA1 : (toxic ? #B6FF00 : #39FF14);
+    out property <color> danger: vapor ? #FF6A88 : (toxic ? #FF3B3B : #FF3864);
+    out property <color> key-fill: vapor ? #20123FE0 : (toxic ? #041004E0 : #12052AE0);
+    out property <color> bg-a: vapor ? #1A1037 : (toxic ? #020A02 : #0D0221);
+    out property <color> bg-b: vapor ? #2D1B5A : (toxic ? #071A06 : #1B0638);
+    out property <color> bg-c: vapor ? #4B2A7B : (toxic ? #0E2A0A : #2A0845);
+    out property <color> hud: vapor ? #12082AE8 : (toxic ? #010601E8 : #05010FE8);
+    out property <color> hud-ink: vapor ? #FFF6FD : (toxic ? #F2FFE9 : #E9FDFF);
+}
+
+component NeonKey inherits Rectangle {
+    in property <string> label;
+    in property <color> neon: Neon.primary;
+    in property <length> font-px: 20px;
+    callback clicked <=> touch.clicked;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+
+    border-radius: 6px;
+    border-width: 2px;
+    border-color: root.neon;
+    background: touch.pressed ? root.neon.with-alpha(0.55) : (touch.has-hover ? root.neon.with-alpha(0.18) : Neon.key-fill);
+    drop-shadow-blur: touch.has-hover ? 22px : 12px;
+    drop-shadow-color: root.neon.with-alpha(touch.pressed ? 1.0 : 0.6);
+
+    animate background, drop-shadow-blur { duration: 110ms; }
+
+    Text {
+        text: root.label;
+        color: touch.pressed ? #FFFFFF : root.neon.brighter(40%);
+        font-size: root.font-px;
+        font-weight: 700;
+        font-family: "monospace";
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+component NeonTab inherits Rectangle {
+    in property <string> label;
+    in property <color> neon: Neon.secondary;
+    callback clicked <=> touch.clicked;
+
+    border-width: 1px;
+    border-color: root.neon;
+    background: touch.has-hover ? root.neon.with-alpha(0.2) : transparent;
+
+    Text {
+        text: root.label;
+        color: root.neon;
+        font-family: "monospace";
+        font-size: 11px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Cyberpunk Neon";
+    preferred-width: 400px;
+    preferred-height: 680px;
+    min-width: 400px;
+    max-width: 400px;
+    min-height: 680px;
+    max-height: 680px;
+    background: @linear-gradient(180deg, Neon.bg-a 0%, Neon.bg-b 60%, Neon.bg-c 100%);
+
+    in-out property <string> expression: "";
+    in-out property <string> preview-result: "";
+    in-out property <bool> is-error: false;
+    in-out property <bool> use-radians: false;
+    in-out property <string> color-theme <=> Neon.color-theme;
+
+    callback press-key(string);
+    callback toggle-angle-unit();
+    callback open-skin-dialog();
+
+    // Slow flicker for the logo
+    property <float> flicker: mod(animation-tick() / 1ms, 4200) < 90 ? 0.35 : 1.0;
+
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) { root.press-key("="); return accept; }
+            if (event.text == Key.Backspace) { root.press-key("BACKSPACE"); return accept; }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") { root.press-key("AC"); return accept; }
+            if (event.text == "t" || event.text == "T" || event.text == Key.F2) { root.open-skin-dialog(); return accept; }
+            return reject;
+        }
+    }
+
+    // Synthwave floor grid
+    for i in 12: Rectangle {
+        x: 0;
+        y: root.height - 260px + i * i * 2px;
+        width: root.width;
+        height: 1px;
+        background: Neon.primary.with-alpha(0.10 + i * 0.02);
+    }
+    for i in 11: Rectangle {
+        x: i * 40px;
+        y: root.height - 260px;
+        width: 1px;
+        height: 260px;
+        background: Neon.primary.with-alpha(0.14);
+    }
+
+    VerticalLayout {
+        padding: 18px;
+        spacing: 14px;
+
+        HorizontalLayout {
+            height: 26px;
+            spacing: 8px;
+
+            Text {
+                text: "NEON//CALC";
+                color: Neon.primary;
+                opacity: root.flicker;
+                font-family: "monospace";
+                font-size: 16px;
+                font-weight: 800;
+                letter-spacing: 2px;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            NeonTab {
+                width: 52px;
+                label: root.use-radians ? "RAD" : "DEG";
+                clicked => { root.toggle-angle-unit(); }
+            }
+            NeonTab {
+                width: 72px;
+                neon: Neon.primary;
+                label: "THEMES";
+                clicked => { root.open-skin-dialog(); }
+            }
+        }
+
+        // HUD display
+        Rectangle {
+            height: 132px;
+            border-width: 2px;
+            border-color: Neon.secondary;
+            border-radius: 4px;
+            background: Neon.hud;
+            drop-shadow-blur: 18px;
+            drop-shadow-color: Neon.secondary.with-alpha(0.5);
+            clip: true;
+
+            Rectangle {
+                x: 0;
+                y: 0;
+                width: 100%;
+                height: 22px;
+                background: Neon.secondary.with-alpha(0.08);
+                Text {
+                    x: 10px;
+                    text: "SYS.MATH  ▸  READY";
+                    color: Neon.secondary.with-alpha(0.63);
+                    font-family: "monospace";
+                    font-size: 10px;
+                    vertical-alignment: center;
+                }
+            }
+
+            VerticalLayout {
+                padding: 14px;
+                alignment: end;
+                spacing: 4px;
+
+                Text {
+                    text: root.expression == "" ? "0" : root.expression;
+                    color: Neon.hud-ink;
+                    font-family: "monospace";
+                    font-size: root.expression.character-count > 14 ? 24px : 36px;
+                    font-weight: 700;
+                    horizontal-alignment: right;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.preview-result == "" ? " " : (root.is-error ? "!! " + root.preview-result : ">> " + root.preview-result);
+                    color: root.is-error ? Neon.danger : Neon.secondary;
+                    font-family: "monospace";
+                    font-size: 17px;
+                    horizontal-alignment: right;
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                spacing: 10px;
+                NeonKey { label: "sin"; neon: Neon.secondary; font-px: 15px; clicked => { root.press-key("sin("); } }
+                NeonKey { label: "cos"; neon: Neon.secondary; font-px: 15px; clicked => { root.press-key("cos("); } }
+                NeonKey { label: "√"; neon: Neon.secondary; font-px: 17px; clicked => { root.press-key("√("); } }
+                NeonKey { label: "xʸ"; neon: Neon.secondary; font-px: 17px; clicked => { root.press-key("^"); } }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                NeonKey { label: "AC"; neon: Neon.danger; clicked => { root.press-key("AC"); } }
+                NeonKey { label: "⌫"; neon: Neon.warn; clicked => { root.press-key("BACKSPACE"); } }
+                NeonKey { label: "( )"; neon: Neon.warn; clicked => { root.press-key("()"); } }
+                NeonKey { label: "÷"; neon: Neon.warn; font-px: 24px; clicked => { root.press-key("÷"); } }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                NeonKey { label: "7"; clicked => { root.press-key("7"); } }
+                NeonKey { label: "8"; clicked => { root.press-key("8"); } }
+                NeonKey { label: "9"; clicked => { root.press-key("9"); } }
+                NeonKey { label: "×"; neon: Neon.warn; font-px: 24px; clicked => { root.press-key("×"); } }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                NeonKey { label: "4"; clicked => { root.press-key("4"); } }
+                NeonKey { label: "5"; clicked => { root.press-key("5"); } }
+                NeonKey { label: "6"; clicked => { root.press-key("6"); } }
+                NeonKey { label: "−"; neon: Neon.warn; font-px: 24px; clicked => { root.press-key("−"); } }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                NeonKey { label: "1"; clicked => { root.press-key("1"); } }
+                NeonKey { label: "2"; clicked => { root.press-key("2"); } }
+                NeonKey { label: "3"; clicked => { root.press-key("3"); } }
+                NeonKey { label: "+"; neon: Neon.warn; font-px: 24px; clicked => { root.press-key("+"); } }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                NeonKey { label: "0"; clicked => { root.press-key("0"); } }
+                NeonKey { label: "."; font-px: 24px; clicked => { root.press-key("."); } }
+                NeonKey { label: "%"; neon: Neon.warn; clicked => { root.press-key("%"); } }
+                NeonKey { label: "="; neon: Neon.go; font-px: 24px; clicked => { root.press-key("="); } }
+            }
+        }
+    }
+}

@@ -1,0 +1,277 @@
+// Shared body for this skin's Nord / Catppuccin Mocha / Catppuccin Latte variants.
+
+export struct DevPalette {
+    name: string,
+    base: color,
+    mantle: color,
+    surface: color,
+    surface-hi: color,
+    text: color,
+    subtext: color,
+    func: color,
+    op: color,
+    clear: color,
+    equals: color,
+    on-equals: color,
+}
+
+component DevKey inherits Rectangle {
+    in property <DevPalette> pal;
+    in property <string> label;
+    in property <color> fg: pal.text;
+    in property <color> bg: pal.surface;
+    in property <length> font-px: 19px;
+    callback clicked <=> touch.clicked;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+
+    border-radius: 10px;
+    background: touch.pressed ? root.bg.darker(12%) : (touch.has-hover ? root.pal.surface-hi : root.bg);
+    animate background { duration: 100ms; }
+
+    Text {
+        text: root.label;
+        color: root.fg;
+        font-size: root.font-px;
+        font-weight: 600;
+        font-family: "monospace";
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+component DevTab inherits Rectangle {
+    in property <DevPalette> pal;
+    in property <string> label;
+    in property <color> fg: pal.subtext;
+    callback clicked <=> touch.clicked;
+
+    border-radius: 6px;
+    background: touch.has-hover ? root.pal.surface : transparent;
+
+    Text {
+        text: root.label;
+        color: root.fg;
+        font-family: "monospace";
+        font-size: 11px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+export component DevCalculator inherits Rectangle {
+    in property <DevPalette> pal;
+
+    in-out property <string> expression: "";
+    in-out property <string> preview-result: "";
+    in-out property <bool> is-error: false;
+    in-out property <bool> use-radians: false;
+
+    callback press-key(string);
+    callback toggle-angle-unit();
+    callback open-skin-dialog();
+
+    background: root.pal.base;
+
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) { root.press-key("="); return accept; }
+            if (event.text == Key.Backspace) { root.press-key("BACKSPACE"); return accept; }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") { root.press-key("AC"); return accept; }
+            if (event.text == "t" || event.text == "T" || event.text == Key.F2) { root.open-skin-dialog(); return accept; }
+            return reject;
+        }
+    }
+
+    VerticalLayout {
+        // Editor-style tab bar
+        Rectangle {
+            height: 34px;
+            background: root.pal.mantle;
+
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 8px;
+                spacing: 6px;
+
+                Rectangle {
+                    width: 120px;
+                    background: root.pal.base;
+                    Rectangle {
+                        y: 0;
+                        height: 2px;
+                        background: root.pal.equals;
+                    }
+                    Text {
+                        text: "calc.rs";
+                        color: root.pal.text;
+                        font-family: "monospace";
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                DevTab {
+                    width: 44px;
+                    pal: root.pal;
+                    label: root.use-radians ? "rad" : "deg";
+                    fg: root.pal.func;
+                    clicked => { root.toggle-angle-unit(); }
+                }
+                DevTab {
+                    width: 64px;
+                    pal: root.pal;
+                    label: "themes";
+                    clicked => { root.open-skin-dialog(); }
+                }
+            }
+        }
+
+        VerticalLayout {
+            padding: 16px;
+            spacing: 14px;
+            vertical-stretch: 1;
+
+            // Code-editor display with line numbers
+            Rectangle {
+                height: 112px;
+                border-radius: 10px;
+                background: root.pal.mantle;
+                clip: true;
+
+                HorizontalLayout {
+                    padding: 14px;
+                    spacing: 12px;
+
+                    VerticalLayout {
+                        width: 16px;
+                        alignment: end;
+                        spacing: 8px;
+                        Text { text: "1"; color: root.pal.subtext.with-alpha(0.5); font-family: "monospace"; font-size: 13px; }
+                        Text { text: "2"; color: root.pal.subtext.with-alpha(0.5); font-family: "monospace"; font-size: 13px; }
+                    }
+
+                    VerticalLayout {
+                        alignment: end;
+                        spacing: 4px;
+                        Text {
+                            text: root.expression == "" ? "0" : root.expression;
+                            color: root.pal.text;
+                            font-family: "monospace";
+                            font-size: root.expression.character-count > 14 ? 22px : 30px;
+                            horizontal-alignment: right;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: root.preview-result == "" ? "// ready" : (root.is-error ? "// " + root.preview-result : "→ " + root.preview-result);
+                            color: root.is-error ? root.pal.clear : (root.preview-result == "" ? root.pal.subtext.with-alpha(0.6) : root.pal.equals);
+                            font-family: "monospace";
+                            font-size: 16px;
+                            horizontal-alignment: right;
+                        }
+                    }
+                }
+            }
+
+            VerticalLayout {
+                spacing: 8px;
+                vertical-stretch: 1;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    DevKey { pal: root.pal; label: "sin"; fg: root.pal.func; bg: root.pal.mantle; font-px: 15px; clicked => { root.press-key("sin("); } }
+                    DevKey { pal: root.pal; label: "cos"; fg: root.pal.func; bg: root.pal.mantle; font-px: 15px; clicked => { root.press-key("cos("); } }
+                    DevKey { pal: root.pal; label: "√"; fg: root.pal.func; bg: root.pal.mantle; clicked => { root.press-key("√("); } }
+                    DevKey { pal: root.pal; label: "^"; fg: root.pal.func; bg: root.pal.mantle; clicked => { root.press-key("^"); } }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    DevKey { pal: root.pal; label: "AC"; fg: root.pal.clear; clicked => { root.press-key("AC"); } }
+                    DevKey { pal: root.pal; label: "⌫"; fg: root.pal.op; clicked => { root.press-key("BACKSPACE"); } }
+                    DevKey { pal: root.pal; label: "()"; fg: root.pal.op; clicked => { root.press-key("()"); } }
+                    DevKey { pal: root.pal; label: "÷"; fg: root.pal.op; font-px: 22px; clicked => { root.press-key("÷"); } }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    DevKey { pal: root.pal; label: "7"; clicked => { root.press-key("7"); } }
+                    DevKey { pal: root.pal; label: "8"; clicked => { root.press-key("8"); } }
+                    DevKey { pal: root.pal; label: "9"; clicked => { root.press-key("9"); } }
+                    DevKey { pal: root.pal; label: "×"; fg: root.pal.op; font-px: 22px; clicked => { root.press-key("×"); } }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    DevKey { pal: root.pal; label: "4"; clicked => { root.press-key("4"); } }
+                    DevKey { pal: root.pal; label: "5"; clicked => { root.press-key("5"); } }
+                    DevKey { pal: root.pal; label: "6"; clicked => { root.press-key("6"); } }
+                    DevKey { pal: root.pal; label: "−"; fg: root.pal.op; font-px: 22px; clicked => { root.press-key("−"); } }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    DevKey { pal: root.pal; label: "1"; clicked => { root.press-key("1"); } }
+                    DevKey { pal: root.pal; label: "2"; clicked => { root.press-key("2"); } }
+                    DevKey { pal: root.pal; label: "3"; clicked => { root.press-key("3"); } }
+                    DevKey { pal: root.pal; label: "+"; fg: root.pal.op; font-px: 22px; clicked => { root.press-key("+"); } }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    DevKey { pal: root.pal; label: "0"; clicked => { root.press-key("0"); } }
+                    DevKey { pal: root.pal; label: "."; clicked => { root.press-key("."); } }
+                    DevKey { pal: root.pal; label: "%"; fg: root.pal.op; clicked => { root.press-key("%"); } }
+                    DevKey { pal: root.pal; label: "="; fg: root.pal.on-equals; bg: root.pal.equals; font-px: 22px; clicked => { root.press-key("="); } }
+                }
+            }
+        }
+
+        // Status bar
+        Rectangle {
+            height: 22px;
+            background: root.pal.mantle;
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                Text {
+                    text: "NORMAL";
+                    color: root.pal.equals;
+                    font-family: "monospace";
+                    font-size: 10px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Text {
+                    text: root.pal.name;
+                    color: root.pal.subtext;
+                    font-family: "monospace";
+                    font-size: 10px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}

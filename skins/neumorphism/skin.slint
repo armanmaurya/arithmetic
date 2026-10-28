@@ -1,0 +1,56 @@
+import { NeuCalculator, NeuPalette } from "body.slint";
+
+export component AppWindow inherits Window {
+    title: "Neumorphism";
+    preferred-width: 380px;
+    preferred-height: 680px;
+    min-width: 380px;
+    max-width: 380px;
+    min-height: 680px;
+    max-height: 680px;
+    background: calc.pal.surface;
+
+    in-out property <string> expression <=> calc.expression;
+    in-out property <string> preview-result <=> calc.preview-result;
+    in-out property <bool> is-error <=> calc.is-error;
+    in-out property <bool> use-radians <=> calc.use-radians;
+    // Colour theme ids match manifest.json
+    in-out property <string> color-theme: "light";
+
+    callback press-key <=> calc.press-key;
+    callback toggle-angle-unit <=> calc.toggle-angle-unit;
+    callback open-skin-dialog <=> calc.open-skin-dialog;
+
+    property <NeuPalette> light: {
+        surface: #E0E5EC,
+        light-shadow: #FFFFFFE6,
+        dark-shadow: #A3B1C6B3,
+        ink: #3D4852,
+        ink-dim: #7A8698,
+        accent: #6C63FF,
+        danger: #E5566F,
+    };
+    property <NeuPalette> dark: {
+        surface: #2B2F36,
+        light-shadow: #3A3F4880,
+        dark-shadow: #16181CCC,
+        ink: #E4E8EE,
+        ink-dim: #8C95A3,
+        accent: #7F78FF,
+        danger: #FF6B81,
+    };
+    property <NeuPalette> sand: {
+        surface: #EDE4D6,
+        light-shadow: #FFFDF8E6,
+        dark-shadow: #C2B29BB3,
+        ink: #4A3F33,
+        ink-dim: #8E7F6C,
+        accent: #D9772B,
+        danger: #C8473A,
+    };
+
+    forward-focus: calc;
+    calc := NeuCalculator {
+        pal: root.color-theme == "dark" ? root.dark : (root.color-theme == "sand" ? root.sand : root.light);
+    }
+}

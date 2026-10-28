@@ -1,0 +1,199 @@
+// Wide layout: an open notebook spread. The left page holds the working and
+// the scientific keys, the right page the number pad, joined by a spiral.
+import { Paper, InkKey, Scribble, PaperSheet, Working } from "parts.slint";
+
+export component AppWindow inherits Window {
+    title: "Paper Notebook";
+    preferred-width: 780px;
+    preferred-height: 500px;
+    min-width: 780px;
+    max-width: 780px;
+    min-height: 500px;
+    max-height: 500px;
+    background: Paper.sheet.darker(25%);
+
+    in-out property <string> expression: "";
+    in-out property <string> preview-result: "";
+    in-out property <bool> is-error: false;
+    in-out property <bool> use-radians: false;
+    in-out property <string> color-theme <=> Paper.color-theme;
+
+    callback press-key(string);
+    callback toggle-angle-unit();
+    callback open-skin-dialog();
+
+    property <length> page-w: (root.width - 40px) / 2;
+
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "!") { root.press-key("!"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) { root.press-key("="); return accept; }
+            if (event.text == Key.Backspace) { root.press-key("BACKSPACE"); return accept; }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") { root.press-key("AC"); return accept; }
+            if (event.text == "t" || event.text == "T" || event.text == Key.F2) { root.open-skin-dialog(); return accept; }
+            return reject;
+        }
+    }
+
+    // Left page
+    PaperSheet {
+        x: 10px;
+        y: 10px;
+        width: root.page-w;
+        height: root.height - 20px;
+        margin-x: 36px;
+        drop-shadow-blur: 8px;
+        drop-shadow-color: #00000040;
+
+        VerticalLayout {
+            padding: 18px;
+            padding-left: 50px;
+            spacing: 14px;
+
+            HorizontalLayout {
+                height: 24px;
+                spacing: 14px;
+                Text {
+                    text: "Maths homework";
+                    color: Paper.ink;
+                    font-size: 17px;
+                    font-italic: true;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Scribble {
+                    text: root.use-radians ? "(rad)" : "(deg)";
+                    clicked => { root.toggle-angle-unit(); }
+                }
+            }
+
+            Working {
+                height: 116px;
+                expression: root.expression;
+                preview-result: root.preview-result;
+                is-error: root.is-error;
+            }
+
+            VerticalLayout {
+                spacing: 10px;
+                vertical-stretch: 1;
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    InkKey { label: "sin"; font-px: 15px; ink: Paper.fn-ink; tilt: -1.5deg; clicked => { root.press-key("sin("); } }
+                    InkKey { label: "cos"; font-px: 15px; ink: Paper.fn-ink; tilt: 1deg; clicked => { root.press-key("cos("); } }
+                    InkKey { label: "tan"; font-px: 15px; ink: Paper.fn-ink; tilt: -0.5deg; clicked => { root.press-key("tan("); } }
+                    InkKey { label: "π"; font-px: 18px; ink: Paper.fn-ink; tilt: 1.4deg; clicked => { root.press-key("π"); } }
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    InkKey { label: "ln"; font-px: 15px; ink: Paper.fn-ink; tilt: 1.2deg; clicked => { root.press-key("ln("); } }
+                    InkKey { label: "log"; font-px: 15px; ink: Paper.fn-ink; tilt: -1deg; clicked => { root.press-key("log("); } }
+                    InkKey { label: "√"; font-px: 18px; ink: Paper.fn-ink; tilt: 0.7deg; clicked => { root.press-key("√("); } }
+                    InkKey { label: "e"; font-px: 18px; ink: Paper.fn-ink; tilt: -1.3deg; clicked => { root.press-key("e"); } }
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    InkKey { label: "xʸ"; font-px: 17px; ink: Paper.fn-ink; tilt: -0.6deg; clicked => { root.press-key("^"); } }
+                    InkKey { label: "x²"; font-px: 17px; ink: Paper.fn-ink; tilt: 1.5deg; clicked => { root.press-key("^2"); } }
+                    InkKey { label: "n!"; font-px: 17px; ink: Paper.fn-ink; tilt: -1.2deg; clicked => { root.press-key("!"); } }
+                    InkKey { label: "sin⁻¹"; font-px: 15px; ink: Paper.fn-ink; tilt: 0.9deg; clicked => { root.press-key("sin⁻¹("); } }
+                }
+            }
+        }
+    }
+
+    // Right page
+    PaperSheet {
+        x: root.width - 10px - root.page-w;
+        y: 10px;
+        width: root.page-w;
+        height: root.height - 20px;
+        show-margin: false;
+        drop-shadow-blur: 8px;
+        drop-shadow-color: #00000040;
+
+        VerticalLayout {
+            padding: 18px;
+            spacing: 12px;
+
+            HorizontalLayout {
+                height: 24px;
+                Rectangle { horizontal-stretch: 1; }
+                Scribble {
+                    text: "themes →";
+                    clicked => { root.open-skin-dialog(); }
+                }
+            }
+
+            VerticalLayout {
+                spacing: 10px;
+                vertical-stretch: 1;
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    InkKey { label: "AC"; ink: Paper.red-ink; tilt: 1.2deg; circled: true; clicked => { root.press-key("AC"); } }
+                    InkKey { label: "⌫"; tilt: -1deg; clicked => { root.press-key("BACKSPACE"); } }
+                    InkKey { label: "( )"; tilt: 0.5deg; clicked => { root.press-key("()"); } }
+                    InkKey { label: "÷"; font-px: 28px; italic: false; tilt: -1.6deg; circled: true; clicked => { root.press-key("÷"); } }
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    InkKey { label: "7"; tilt: -0.8deg; clicked => { root.press-key("7"); } }
+                    InkKey { label: "8"; tilt: 1.4deg; clicked => { root.press-key("8"); } }
+                    InkKey { label: "9"; tilt: -1.2deg; clicked => { root.press-key("9"); } }
+                    InkKey { label: "×"; font-px: 28px; italic: false; tilt: 1deg; circled: true; clicked => { root.press-key("×"); } }
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    InkKey { label: "4"; tilt: 1.6deg; clicked => { root.press-key("4"); } }
+                    InkKey { label: "5"; tilt: -0.4deg; clicked => { root.press-key("5"); } }
+                    InkKey { label: "6"; tilt: 1deg; clicked => { root.press-key("6"); } }
+                    InkKey { label: "−"; font-px: 28px; italic: false; tilt: -1.4deg; circled: true; clicked => { root.press-key("−"); } }
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    InkKey { label: "1"; tilt: -1.6deg; clicked => { root.press-key("1"); } }
+                    InkKey { label: "2"; tilt: 0.8deg; clicked => { root.press-key("2"); } }
+                    InkKey { label: "3"; tilt: -0.6deg; clicked => { root.press-key("3"); } }
+                    InkKey { label: "+"; font-px: 28px; italic: false; tilt: 1.5deg; circled: true; clicked => { root.press-key("+"); } }
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    InkKey { label: "0"; tilt: 1deg; clicked => { root.press-key("0"); } }
+                    InkKey { label: "."; font-px: 26px; tilt: -1.2deg; clicked => { root.press-key("."); } }
+                    InkKey { label: "%"; tilt: 0.6deg; clicked => { root.press-key("%"); } }
+                    InkKey { label: "="; font-px: 26px; ink: Paper.green-ink; tilt: -1deg; circled: true; clicked => { root.press-key("="); } }
+                }
+            }
+        }
+    }
+
+    // Spiral binding down the spine
+    for i in 16: Rectangle {
+        x: (root.width - 34px) / 2;
+        y: 26px + i * 28px;
+        width: 34px;
+        height: 10px;
+        border-radius: 5px;
+        border-width: 3px;
+        border-color: Paper.binding;
+        background: transparent;
+    }
+}

@@ -1,0 +1,48 @@
+{
+  "id": "terminal",
+  "name": "Terminal",
+  "version": "1.0.0",
+  "author": "Arithmetic Team",
+  "description": "Monochrome phosphor console with a blinking cursor and scanlines",
+  "preview": "previews/green.png",
+  "default_layout": "standard",
+  "layouts": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 400.0,
+      "height": 660.0
+    }
+  ],
+  "default_color_theme": "green",
+  "color_themes": [
+    {
+      "id": "green",
+      "name": "Green",
+      "swatch": [
+        "#050A06",
+        "#33FF66"
+      ],
+      "preview": "previews/green.png"
+    },
+    {
+      "id": "amber",
+      "name": "Amber",
+      "swatch": [
+        "#0A0702",
+        "#FFB000"
+      ],
+      "preview": "previews/amber.png"
+    },
+    {
+      "id": "cyan",
+      "name": "Cyan",
+      "swatch": [
+        "#03090B",
+        "#39E6FF"
+      ],
+      "preview": "previews/cyan.png"
+    }
+  ]
+}

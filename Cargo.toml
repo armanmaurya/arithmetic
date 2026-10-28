@@ -41,12 +41,14 @@ assets = [
     ["packaging/arithmetic-48.png", "usr/share/icons/hicolor/48x48/apps/", "644"],
     ["packaging/arithmetic.png", "usr/share/pixmaps/", "644"],
     ["packaging/arithmetic.svg", "usr/share/pixmaps/", "644"],
+    ["skins/**/*", "usr/share/arithmetic/skins/", "644"],
 ]
 
 # Universal AppImage (.AppImage via `cargo appimage`)
 [package.metadata.appimage]
 icon = "packaging/arithmetic.svg"
 auto_link = true
+assets = ["skins"]
 
 # Arch Linux AUR (`cargo aur`)
 [package.metadata.aur]
@@ -56,6 +58,7 @@ files = [
     ["packaging/arithmetic.svg", "/usr/share/icons/hicolor/scalable/apps/arithmetic.svg", "644"],
     ["LICENSE", "/usr/share/licenses/arithmetic/LICENSE", "644"],
 ]
+# Skins are installed by packaging/PKGBUILD; cargo-aur's `files` cannot glob directories.
 
 # Fedora, openSUSE & RHEL (.rpm via `cargo generate-rpm`)
 [package.metadata.generate-rpm]
@@ -68,4 +71,5 @@ assets = [
     { source = "packaging/arithmetic.png", dest = "/usr/share/pixmaps/arithmetic.png", mode = "644" },
     { source = "packaging/arithmetic.svg", dest = "/usr/share/pixmaps/arithmetic.svg", mode = "644" },
     { source = "LICENSE", dest = "/usr/share/licenses/arithmetic/LICENSE", mode = "644" },
+    { source = "skins/**/*", dest = "/usr/share/arithmetic/skins/", mode = "644" },
 ]

@@ -7,6 +7,11 @@ use std::path::PathBuf;
 pub fn skin_search_directories() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
 
+    // 0. Debug builds load the repository's own skins first, so `cargo run`
+    //    always reflects the skins being developed.
+    #[cfg(debug_assertions)]
+    dirs.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("skins"));
+
     // 1. User config directory: $XDG_CONFIG_HOME/arithmetic/skins or ~/.config/arithmetic/skins
     if let Some(cfg_dir) = app_config_dir() {
         dirs.push(cfg_dir.join("skins"));
@@ -35,6 +40,11 @@ pub fn skin_search_directories() -> Vec<PathBuf> {
         dirs.push(parent.join("..").join("share").join("arithmetic").join("skins"));
     }
 
+    // AppImage: bundled skins are unpacked at the AppDir root
+    if let Some(appdir) = std::env::var_os("APPDIR") {
+        dirs.push(PathBuf::from(appdir).join("skins"));
+    }
+
     // 4. System directories: /usr/share/arithmetic/skins and /usr/local/share/arithmetic/skins
     dirs.push(PathBuf::from("/usr/share/arithmetic/skins"));
     dirs.push(PathBuf::from("/usr/local/share/arithmetic/skins"));
@@ -55,6 +65,10 @@ pub fn skin_search_directories() -> Vec<PathBuf> {
         }
     }
 
+    // The XDG fallbacks usually resolve to the same place as the app dirs;
+    // scan each directory once.
+    let mut seen = HashSet::new();
+    dirs.retain(|d| seen.insert(d.canonicalize().unwrap_or_else(|_| d.clone())));
     dirs
 }
 
@@ -86,13 +100,16 @@ pub fn discover_skins() -> Vec<SkinInfo> {
                 continue;
             };
 
-            let Ok(manifest) = serde_json::from_str::<SkinManifest>(&content) else {
-                eprintln!("[skins] Invalid manifest at {:?}", manifest_path);
-                continue;
+            let manifest = match serde_json::from_str::<SkinManifest>(&content) {
+                Ok(manifest) => manifest,
+                Err(e) => {
+                    eprintln!("[skins] Skipping {:?}: {e}", manifest_path);
+                    continue;
+                }
             };
 
-            if manifest.variants.is_empty() {
-                eprintln!("[skins] Manifest at {:?} has no variants", manifest_path);
+            if manifest.layouts.is_empty() {
+                eprintln!("[skins] Manifest at {:?} has no layouts", manifest_path);
                 continue;
             }
 
@@ -100,15 +117,15 @@ pub fn discover_skins() -> Vec<SkinInfo> {
                 continue;
             }
 
-            let def_variant = manifest
-                .variants
+            let def_layout = manifest
+                .layouts
                 .iter()
-                .find(|v| v.id == manifest.default_variant)
-                .unwrap_or(&manifest.variants[0]);
-            let main_file = skin_dir.join(&def_variant.file);
+                .find(|l| l.id == manifest.default_layout)
+                .unwrap_or(&manifest.layouts[0]);
+            let main_file = skin_dir.join(&def_layout.file);
             if !main_file.is_file() {
                 eprintln!(
-                    "[skins] Default variant file missing for skin {}: {:?}",
+                    "[skins] Default layout file missing for skin {}: {:?}",
                     manifest.id, main_file
                 );
                 continue;

@@ -1,10 +1,10 @@
 use arithmetic::core::editor::pop_last_token;
 use arithmetic::core::engine::{evaluate_expression, format_number};
 use arithmetic::core::paths::{app_config_dir, config_file_path};
-use arithmetic::skin::{compile_skin_definition, discover_skins};
+use arithmetic::skin::{compile_skin_definition, compile_skin_layout, discover_skins};
 use arithmetic::storage::{
     append_history_entry, clear_saved_history, load_raw_history, load_settings, save_settings,
-    AppSettings,
+    AppSettings, SkinPrefs,
 };
 
 #[test]
@@ -18,19 +18,18 @@ fn test_skin_discovery() {
     assert!(ids.contains(&"ti-datamath-1977"), "Must discover ti-datamath-1977 skin");
     assert!(ids.contains(&"braun-et66"), "Must discover braun-et66 skin");
 
-    // Ensure compact-bar is now a variant of material-3, not a standalone skin
-    assert!(!ids.contains(&"compact-bar"), "compact-bar must be a variant of material-3");
+    // Compact bar is a layout of material-3, not a standalone skin
+    assert!(!ids.contains(&"compact-bar"), "compact-bar must be a layout of material-3");
     let m3 = skins.iter().find(|s| s.manifest.id == "material-3").expect("material-3 must exist");
-    assert_eq!(m3.manifest.variants.len(), 3, "material-3 must have 3 variants");
-    let variant_ids: Vec<&str> = m3.manifest.variants.iter().map(|v| v.id.as_str()).collect();
-    assert!(variant_ids.contains(&"compact"), "material-3 must have compact variant");
-    assert!(variant_ids.contains(&"standard"), "material-3 must have standard variant");
-    assert!(variant_ids.contains(&"large"), "material-3 must have large variant");
+    let layout_ids: Vec<&str> = m3.manifest.layouts.iter().map(|l| l.id.as_str()).collect();
+    assert_eq!(layout_ids.len(), 3, "material-3 must have 3 layouts");
+    for id in ["compact", "standard", "large"] {
+        assert!(layout_ids.contains(&id), "material-3 must have '{id}' layout");
+    }
 
     // Ensure removed themes are no longer present
     assert!(!ids.contains(&"casio-scientific"));
     assert!(!ids.contains(&"hp-12c-voyager"));
-    assert!(!ids.contains(&"cyberpunk-neon"));
     assert!(!ids.contains(&"skeuomorphic"));
 }
 
@@ -47,8 +46,8 @@ fn test_external_skin_compilation_outside_repo() {
         "version": "1.0.0",
         "author": "Community User",
         "description": "Completely isolated custom skin created outside the repo",
-        "default_variant": "standard",
-        "variants": [
+        "default_layout": "standard",
+        "layouts": [
             {
                 "id": "standard",
                 "name": "Standard",
@@ -64,7 +63,6 @@ fn test_external_skin_compilation_outside_repo() {
 export struct HistoryEntry {
     expression: string,
     result: string,
-    timestamp: string,
 }
 
 export component AppWindow inherits Window {
@@ -126,25 +124,24 @@ fn test_config_directory_and_skins_path() {
 fn test_settings_persistence() {
     let original = load_settings();
 
-    save_settings(&AppSettings {
-        active_skin: "material-3".to_string(),
-        active_variant: "compact".to_string(),
-        theme_mode: 1,
+    let mut settings = AppSettings::default();
+    settings.set_active("material-3", SkinPrefs {
+        layout: "compact".to_string(),
+        color_theme: "dark".to_string(),
     });
-    let loaded = load_settings();
-    assert_eq!(loaded.active_skin, "material-3");
-    assert_eq!(loaded.active_variant, "compact");
-    assert_eq!(loaded.theme_mode, 1);
+    settings.set_active("classic-desktop", SkinPrefs {
+        layout: "standard".to_string(),
+        color_theme: "slate".to_string(),
+    });
+    save_settings(&settings);
 
-    save_settings(&AppSettings {
-        active_skin: "classic-desktop".to_string(),
-        active_variant: "standard".to_string(),
-        theme_mode: 0,
-    });
     let loaded = load_settings();
     assert_eq!(loaded.active_skin, "classic-desktop");
-    assert_eq!(loaded.active_variant, "standard");
-    assert_eq!(loaded.theme_mode, 0);
+    assert_eq!(loaded.prefs_for("classic-desktop").color_theme, "slate");
+    // Each skin remembers its own layout and colour theme
+    assert_eq!(loaded.prefs_for("material-3").layout, "compact");
+    assert_eq!(loaded.prefs_for("material-3").color_theme, "dark");
+    assert_eq!(loaded.prefs_for("unknown-skin"), SkinPrefs::default());
 
     // Restore original
     save_settings(&original);
@@ -156,33 +153,37 @@ fn test_compile_all_skin_definitions() {
     assert!(!skins.is_empty(), "Must discover at least 1 skin");
 
     for skin in &skins {
-        let comp_res = compile_skin_definition(skin);
-        assert!(
-            comp_res.is_ok(),
-            "Skin '{}' failed to compile: {:?}",
-            skin.manifest.id,
-            comp_res.err()
-        );
+        let has_color_themes = !skin.manifest.color_themes.is_empty();
+        for layout in &skin.manifest.layouts {
+            let label = format!("{}/{}", skin.manifest.id, layout.id);
+            let comp = compile_skin_layout(skin, layout)
+                .unwrap_or_else(|e| panic!("Skin '{label}' failed to compile: {e}"));
 
-        let comp = comp_res.unwrap();
-        let props: Vec<String> = comp.properties().map(|(name, _)| name).collect();
-
-        // Verify standard skin contract properties
-        assert!(
-            props.iter().any(|p| p == "expression"),
-            "Skin '{}' must have 'expression' property",
-            skin.manifest.id
-        );
-        assert!(
-            props.iter().any(|p| p == "preview_result" || p == "preview-result"),
-            "Skin '{}' must have 'preview_result' property",
-            skin.manifest.id
-        );
-        assert!(
-            props.iter().any(|p| p == "use_radians" || p == "use-radians"),
-            "Skin '{}' must have 'use_radians' property",
-            skin.manifest.id
-        );
+            // Required skin contract
+            let props: Vec<String> = comp.properties().map(|(name, _)| name).collect();
+            for required in ["expression", "preview-result", "is-error", "use-radians"] {
+                assert!(
+                    props.iter().any(|p| p == required || *p == required.replace('-', "_")),
+                    "Skin '{label}' must have '{required}' property"
+                );
+            }
+            assert!(
+                comp.callbacks().any(|c| c == "press-key" || c == "press_key"),
+                "Skin '{label}' must have 'press-key' callback"
+            );
+            assert!(
+                comp.callbacks().any(|c| c == "open-skin-dialog" || c == "open_skin_dialog"),
+                "Skin '{label}' must expose 'open-skin-dialog' so users can switch skins"
+            );
+            // Every layout of a themed skin must accept the colour theme
+            assert_eq!(
+                props.iter().any(|p| p == "color-theme" || p == "color_theme"),
+                has_color_themes,
+                "Skin '{label}' declares {} colour themes but {} a 'color-theme' property",
+                if has_color_themes { "" } else { "no" },
+                if has_color_themes { "lacks" } else { "has" },
+            );
+        }
     }
 }
 

@@ -3,15 +3,39 @@
   "name": "Braun ET66",
   "version": "1.0.0",
   "author": "Dietrich Lubs & Dieter Rams",
-  "description": "Iconic 1987 Bauhaus-inspired minimalist calculator with convex circular keys and matte chassis",
-  "default_variant": "standard",
-  "variants": [
+  "description": "1987 Bauhaus minimalist calculator with convex circular keys",
+  "preview": "previews/black.png",
+  "default_layout": "standard",
+  "layouts": [
     {
       "id": "standard",
       "name": "Standard",
       "file": "skin.slint",
       "width": 390.0,
       "height": 640.0
+    }
+  ],
+  "default_color_theme": "black",
+  "color_themes": [
+    {
+      "id": "black",
+      "name": "Black",
+      "swatch": [
+        "#18191E",
+        "#3E424C",
+        "#FF9500"
+      ],
+      "preview": "previews/black.png"
+    },
+    {
+      "id": "white",
+      "name": "White",
+      "swatch": [
+        "#E7E6E0",
+        "#FDFDFB",
+        "#FF9500"
+      ],
+      "preview": "previews/white.png"
     }
   ]
 }

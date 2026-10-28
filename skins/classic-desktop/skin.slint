@@ -1,12 +1,32 @@
 export struct HistoryEntry {
     expression: string,
     result: string,
-    timestamp: string,
+}
+
+// Colour themes (ids match manifest.json)
+global Classic {
+    in-out property <string> color-theme: "classic";
+    property <bool> slate: color-theme == "slate";
+    property <bool> contrast: color-theme == "high-contrast";
+
+    out property <color> window: slate ? #2B2F38 : (contrast ? #000000 : #ECE9D8);
+    out property <color> face: slate ? #3C4250 : (contrast ? #000000 : #D4D0C8);
+    out property <color> face-pressed: slate ? #313642 : (contrast ? #262626 : #BDB8AE);
+    out property <color> hilite: slate ? #5A6274 : (contrast ? #FFFFFF : #FFFFFF);
+    out property <color> shadow: slate ? #1C1F26 : (contrast ? #FFFFFF : #404040);
+    out property <color> frame: slate ? #1C1F26 : (contrast ? #FFFFFF : #808080);
+    out property <color> ink: slate ? #E6E9EF : (contrast ? #FFFFFF : #000000);
+    out property <color> accent: slate ? #8AB4F8 : (contrast ? #00FFFF : #000080);
+    out property <color> danger: slate ? #F28B82 : (contrast ? #FFFF00 : #800000);
+    out property <color> lcd: slate ? #18261C : (contrast ? #000000 : #D8E4D0);
+    out property <color> lcd-bevel: slate ? #111317 : (contrast ? #FFFFFF : #606060);
+    out property <color> lcd-ink: slate ? #7CFC9A : (contrast ? #FFFFFF : #1A2416);
+    out property <color> lcd-dim: slate ? #4FA36A : (contrast ? #00FF00 : #4B5A42);
 }
 
 component RetroButton inherits Rectangle {
     in property <string> label;
-    in property <color> text-color: #000000;
+    in property <color> text-color: Classic.ink;
     in property <length> font-px: 16px;
     in property <bool> bold: false;
     callback clicked <=> touch.clicked;
@@ -15,26 +35,26 @@ component RetroButton inherits Rectangle {
     vertical-stretch: 1;
 
     border-radius: 2px;
-    background: touch.pressed ? #BDB8AE : #D4D0C8;
+    background: touch.pressed ? Classic.face-pressed : Classic.face;
 
     // Bevel highlights & shadows
     // Top & Left highlight
     Rectangle {
         x: 0; y: 0; width: 100%; height: 2px;
-        background: touch.pressed ? #404040 : #FFFFFF;
+        background: touch.pressed ? Classic.shadow : Classic.hilite;
     }
     Rectangle {
         x: 0; y: 0; width: 2px; height: 100%;
-        background: touch.pressed ? #404040 : #FFFFFF;
+        background: touch.pressed ? Classic.shadow : Classic.hilite;
     }
     // Bottom & Right shadow
     Rectangle {
         x: 0; y: parent.height - 2px; width: 100%; height: 2px;
-        background: touch.pressed ? #FFFFFF : #404040;
+        background: touch.pressed ? Classic.hilite : Classic.shadow;
     }
     Rectangle {
         x: parent.width - 2px; y: 0; width: 2px; height: 100%;
-        background: touch.pressed ? #FFFFFF : #404040;
+        background: touch.pressed ? Classic.hilite : Classic.shadow;
     }
 
     Text {
@@ -59,11 +79,14 @@ export component AppWindow inherits Window {
     title: "Classic Calculator";
     preferred-width: 350px;
     preferred-height: 440px;
-    min-width: 320px;
-    min-height: 400px;
-    background: #ECE9D8;
+    min-width: 350px;
+    max-width: 350px;
+    min-height: 440px;
+    max-height: 440px;
+    background: Classic.window;
 
     // Standard Calculator State Contract
+    in-out property <string> color-theme <=> Classic.color-theme;
     in-out property <string> expression: "";
     in-out property <int> cursor-byte-offset: 0;
     in-out property <string> preview-result: "";
@@ -80,8 +103,10 @@ export component AppWindow inherits Window {
     callback clear-history();
     callback select-history-item(string);
     callback switch-skin(string);
+    callback open-skin-dialog();
 
     // Keyboard Handler
+    forward-focus: key-handler;
     key-handler := FocusScope {
         key-pressed(event) => {
             if (event.text == "0" || event.text == "1" || event.text == "2" ||
@@ -110,6 +135,10 @@ export component AppWindow inherits Window {
                 root.press-key("AC");
                 return accept;
             }
+            if (event.text == "t" || event.text == "T" || event.text == Key.F2) {
+                root.open-skin-dialog();
+                return accept;
+            }
             return reject;
         }
     }
@@ -125,15 +154,15 @@ export component AppWindow inherits Window {
 
             Rectangle {
                 width: 58px;
-                background: #D4D0C8;
+                background: Classic.face;
                 border-radius: 2px;
                 border-width: 1px;
-                border-color: #808080;
+                border-color: Classic.frame;
                 Text {
                     text: root.use-radians ? "RAD" : "DEG";
                     font-size: 11px;
                     font-weight: 700;
-                    color: #000080;
+                    color: Classic.accent;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
@@ -147,42 +176,23 @@ export component AppWindow inherits Window {
                 horizontal-stretch: 1;
             }
 
-            // Skin switcher buttons
-            Rectangle {
-                width: 72px;
-                background: #D4D0C8;
-                border-radius: 2px;
-                border-width: 1px;
-                border-color: #808080;
-                Text {
-                    text: "Material 3";
-                    font-size: 11px;
-                    color: #000000;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-                TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => { root.switch-skin("material-3"); }
-                }
-            }
-
+            // Skin picker button
             Rectangle {
                 width: 78px;
-                background: #D4D0C8;
+                background: Classic.face;
                 border-radius: 2px;
                 border-width: 1px;
-                border-color: #808080;
+                border-color: Classic.frame;
                 Text {
-                    text: "Compact Bar";
+                    text: "Themes...";
                     font-size: 11px;
-                    color: #000000;
+                    color: Classic.ink;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
                 TouchArea {
                     mouse-cursor: pointer;
-                    clicked => { root.switch-skin("compact-bar"); }
+                    clicked => { root.open-skin-dialog(); }
                 }
             }
         }
@@ -190,26 +200,26 @@ export component AppWindow inherits Window {
         // Vintage LCD Display Frame (Inset Bevel)
         Rectangle {
             height: 72px;
-            background: #D8E4D0; // Classic pale LCD green
+            background: Classic.lcd;
             border-radius: 2px;
             clip: true;
 
             // Inset bevel borders: top/left dark shadow, bottom/right white highlight
             Rectangle {
                 x: 0; y: 0; width: 100%; height: 2px;
-                background: #606060;
+                background: Classic.lcd-bevel;
             }
             Rectangle {
                 x: 0; y: 0; width: 2px; height: 100%;
-                background: #606060;
+                background: Classic.lcd-bevel;
             }
             Rectangle {
                 x: 0; y: parent.height - 1px; width: 100%; height: 1px;
-                background: #FFFFFF;
+                background: Classic.hilite;
             }
             Rectangle {
                 x: parent.width - 1px; y: 0; width: 1px; height: 100%;
-                background: #FFFFFF;
+                background: Classic.hilite;
             }
 
             VerticalLayout {
@@ -223,7 +233,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.expression == "" ? "0" : (root.preview-result != "" ? root.expression + " = " + root.preview-result : root.expression);
                     font-size: 12px;
-                    color: root.is-error ? #800000 : #4B5A42;
+                    color: root.is-error ? Classic.danger : Classic.lcd-dim;
                     horizontal-alignment: end;
                 }
 
@@ -232,7 +242,7 @@ export component AppWindow inherits Window {
                     text: root.expression == "" ? "0" : (root.is-error ? "Error" : root.expression);
                     font-size: 26px;
                     font-weight: 700;
-                    color: #1A2416;
+                    color: Classic.lcd-ink;
                     horizontal-alignment: end;
                 }
             }
@@ -247,10 +257,10 @@ export component AppWindow inherits Window {
             HorizontalLayout {
                 spacing: 5px;
                 vertical-stretch: 1;
-                RetroButton { label: "AC"; text-color: #800000; bold: true; clicked => { root.press-key("AC"); } }
-                RetroButton { label: "⌫"; text-color: #000000; clicked => { root.press-key("BACKSPACE"); } }
-                RetroButton { label: "( )"; text-color: #000080; clicked => { root.press-key("()"); } }
-                RetroButton { label: "÷"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("÷"); } }
+                RetroButton { label: "AC"; text-color: Classic.danger; bold: true; clicked => { root.press-key("AC"); } }
+                RetroButton { label: "⌫"; text-color: Classic.ink; clicked => { root.press-key("BACKSPACE"); } }
+                RetroButton { label: "( )"; text-color: Classic.accent; clicked => { root.press-key("()"); } }
+                RetroButton { label: "÷"; text-color: Classic.accent; font-px: 19px; bold: true; clicked => { root.press-key("÷"); } }
             }
 
             // Row 2: 7, 8, 9, ×
@@ -260,7 +270,7 @@ export component AppWindow inherits Window {
                 RetroButton { label: "7"; bold: true; clicked => { root.press-key("7"); } }
                 RetroButton { label: "8"; bold: true; clicked => { root.press-key("8"); } }
                 RetroButton { label: "9"; bold: true; clicked => { root.press-key("9"); } }
-                RetroButton { label: "×"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("×"); } }
+                RetroButton { label: "×"; text-color: Classic.accent; font-px: 19px; bold: true; clicked => { root.press-key("×"); } }
             }
 
             // Row 3: 4, 5, 6, −
@@ -270,7 +280,7 @@ export component AppWindow inherits Window {
                 RetroButton { label: "4"; bold: true; clicked => { root.press-key("4"); } }
                 RetroButton { label: "5"; bold: true; clicked => { root.press-key("5"); } }
                 RetroButton { label: "6"; bold: true; clicked => { root.press-key("6"); } }
-                RetroButton { label: "−"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("−"); } }
+                RetroButton { label: "−"; text-color: Classic.accent; font-px: 19px; bold: true; clicked => { root.press-key("−"); } }
             }
 
             // Row 4: 1, 2, 3, +
@@ -280,7 +290,7 @@ export component AppWindow inherits Window {
                 RetroButton { label: "1"; bold: true; clicked => { root.press-key("1"); } }
                 RetroButton { label: "2"; bold: true; clicked => { root.press-key("2"); } }
                 RetroButton { label: "3"; bold: true; clicked => { root.press-key("3"); } }
-                RetroButton { label: "+"; text-color: #000080; font-px: 19px; bold: true; clicked => { root.press-key("+"); } }
+                RetroButton { label: "+"; text-color: Classic.accent; font-px: 19px; bold: true; clicked => { root.press-key("+"); } }
             }
 
             // Row 5: 0, ., %, =
@@ -289,8 +299,8 @@ export component AppWindow inherits Window {
                 vertical-stretch: 1;
                 RetroButton { label: "0"; bold: true; clicked => { root.press-key("0"); } }
                 RetroButton { label: "."; bold: true; font-px: 20px; clicked => { root.press-key("."); } }
-                RetroButton { label: "%"; text-color: #000080; clicked => { root.press-key("%"); } }
-                RetroButton { label: "="; text-color: #800000; font-px: 20px; bold: true; clicked => { root.press-key("="); } }
+                RetroButton { label: "%"; text-color: Classic.accent; clicked => { root.press-key("%"); } }
+                RetroButton { label: "="; text-color: Classic.danger; font-px: 20px; bold: true; clicked => { root.press-key("="); } }
             }
         }
     }

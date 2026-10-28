@@ -1,0 +1,64 @@
+{
+  "id": "paper-notebook",
+  "name": "Paper Notebook",
+  "version": "1.0.0",
+  "author": "Arithmetic Team",
+  "description": "Hand-inked keys sketched on paper",
+  "preview": "previews/graph.png",
+  "default_layout": "standard",
+  "layouts": [
+    {
+      "id": "standard",
+      "name": "Notebook",
+      "file": "skin.slint",
+      "width": 400.0,
+      "height": 680.0
+    },
+    {
+      "id": "compact",
+      "name": "Sticky Note",
+      "file": "compact.slint",
+      "width": 520.0,
+      "height": 150.0
+    },
+    {
+      "id": "wide",
+      "name": "Open Spread",
+      "file": "wide.slint",
+      "width": 780.0,
+      "height": 500.0
+    }
+  ],
+  "default_color_theme": "graph",
+  "color_themes": [
+    {
+      "id": "graph",
+      "name": "Graph Paper",
+      "swatch": [
+        "#FBF8EE",
+        "#9CC3E6",
+        "#24357A"
+      ],
+      "preview": "previews/graph.png"
+    },
+    {
+      "id": "legal-pad",
+      "name": "Legal Pad",
+      "swatch": [
+        "#FCF3A8",
+        "#7FA6D6",
+        "#1C1C1C"
+      ],
+      "preview": "previews/legal-pad.png"
+    },
+    {
+      "id": "blueprint",
+      "name": "Blueprint",
+      "swatch": [
+        "#1F4E8C",
+        "#F2F7FF"
+      ],
+      "preview": "previews/blueprint.png"
+    }
+  ]
+}

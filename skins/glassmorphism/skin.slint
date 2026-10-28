@@ -1,0 +1,271 @@
+// Colour themes (ids match manifest.json)
+global Glass {
+    in-out property <string> color-theme: "sunset";
+    property <bool> ocean: color-theme == "ocean";
+    property <bool> aurora: color-theme == "aurora";
+
+    out property <color> bg-a: ocean ? #0B3D91 : (aurora ? #0B1F3A : #6A3DE8);
+    out property <color> bg-b: ocean ? #1478C8 : (aurora ? #106E6A : #C13FD1);
+    out property <color> bg-c: ocean ? #2EC4B6 : (aurora ? #6A2C91 : #FF7A8A);
+    out property <color> blob-a: ocean ? #7FE7FF70 : (aurora ? #3DFFB070 : #3FD0FF70);
+    out property <color> blob-b: ocean ? #00507080 : (aurora ? #B061FF60 : #FFD15C60);
+    out property <color> blob-c: ocean ? #9DFFE060 : (aurora ? #2DE1FC50 : #7CFFB260);
+    out property <color> shade: ocean ? #00183A50 : (aurora ? #00101850 : #1A0B3A40);
+    out property <color> alert: ocean ? #FFE3D6 : (aurora ? #FFD6F0 : #FFE0E6);
+    out property <color> alert-tint: ocean ? #FF8A5C40 : (aurora ? #FF5CC840 : #FF5C7A40);
+}
+
+component GlassKey inherits Rectangle {
+    in property <string> label;
+    in property <color> tint: #FFFFFF22;
+    in property <color> text-color: #FFFFFF;
+    in property <length> font-px: 20px;
+    in property <bool> bold: false;
+    callback clicked <=> touch.clicked;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+
+    border-radius: 18px;
+    background: touch.pressed ? #FFFFFF48 : (touch.has-hover ? #FFFFFF32 : root.tint);
+    border-width: 1px;
+    border-color: #FFFFFF55;
+    drop-shadow-blur: 14px;
+    drop-shadow-offset-y: 6px;
+    drop-shadow-color: Glass.shade;
+
+    animate background { duration: 120ms; }
+
+    // Top sheen
+    Rectangle {
+        x: 1px;
+        y: 1px;
+        width: parent.width - 2px;
+        height: parent.height / 2;
+        border-radius: 17px;
+        background: @linear-gradient(180deg, #FFFFFF30 0%, #FFFFFF00 100%);
+    }
+
+    Text {
+        text: root.label;
+        color: root.text-color;
+        font-size: root.font-px;
+        font-weight: root.bold ? 700 : 400;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+component GlassChip inherits Rectangle {
+    in property <string> label;
+    callback clicked <=> touch.clicked;
+
+    border-radius: 14px;
+    background: touch.pressed ? #FFFFFF40 : (touch.has-hover ? #FFFFFF30 : #FFFFFF22);
+    border-width: 1px;
+    border-color: #FFFFFF55;
+
+    Text {
+        text: root.label;
+        color: #FFFFFF;
+        font-size: 11px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Glassmorphism";
+    preferred-width: 400px;
+    preferred-height: 680px;
+    min-width: 400px;
+    max-width: 400px;
+    min-height: 680px;
+    max-height: 680px;
+    background: @linear-gradient(140deg, Glass.bg-a 0%, Glass.bg-b 50%, Glass.bg-c 100%);
+
+    in-out property <string> expression: "";
+    in-out property <string> preview-result: "";
+    in-out property <bool> is-error: false;
+    in-out property <bool> use-radians: false;
+    in-out property <string> color-theme <=> Glass.color-theme;
+
+    callback press-key(string);
+    callback toggle-angle-unit();
+    callback open-skin-dialog();
+
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "0" || event.text == "1" || event.text == "2" ||
+                event.text == "3" || event.text == "4" || event.text == "5" ||
+                event.text == "6" || event.text == "7" || event.text == "8" ||
+                event.text == "9" || event.text == ".") {
+                root.press-key(event.text);
+                return accept;
+            }
+            if (event.text == "+") { root.press-key("+"); return accept; }
+            if (event.text == "-") { root.press-key("−"); return accept; }
+            if (event.text == "*") { root.press-key("×"); return accept; }
+            if (event.text == "/") { root.press-key("÷"); return accept; }
+            if (event.text == "%") { root.press-key("%"); return accept; }
+            if (event.text == "^") { root.press-key("^"); return accept; }
+            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
+            if (event.text == "=" || event.text == Key.Return) { root.press-key("="); return accept; }
+            if (event.text == Key.Backspace) { root.press-key("BACKSPACE"); return accept; }
+            if (event.text == Key.Escape || event.text == "c" || event.text == "C") { root.press-key("AC"); return accept; }
+            if (event.text == "t" || event.text == "T" || event.text == Key.F2) { root.open-skin-dialog(); return accept; }
+            return reject;
+        }
+    }
+
+    // Soft colour blobs behind the glass
+    Rectangle {
+        clip: true;
+
+        Rectangle {
+            x: -60px;
+            y: 80px;
+            width: 220px;
+            height: 220px;
+            border-radius: 110px;
+            background: Glass.blob-a;
+        }
+        Rectangle {
+            x: parent.width - 150px;
+            y: 300px;
+            width: 240px;
+            height: 240px;
+            border-radius: 120px;
+            background: Glass.blob-b;
+        }
+        Rectangle {
+            x: 40px;
+            y: parent.height - 160px;
+            width: 180px;
+            height: 180px;
+            border-radius: 90px;
+            background: Glass.blob-c;
+        }
+    }
+
+    VerticalLayout {
+        padding: 18px;
+        spacing: 14px;
+
+        HorizontalLayout {
+            spacing: 8px;
+            height: 28px;
+
+            Text {
+                text: "Glass";
+                color: #FFFFFFE0;
+                font-size: 15px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            GlassChip {
+                width: 56px;
+                label: root.use-radians ? "RAD" : "DEG";
+                clicked => { root.toggle-angle-unit(); }
+            }
+            GlassChip {
+                width: 76px;
+                label: "Themes ▾";
+                clicked => { root.open-skin-dialog(); }
+            }
+        }
+
+        // Frosted display card
+        Rectangle {
+            height: 132px;
+            border-radius: 24px;
+            background: #FFFFFF26;
+            border-width: 1px;
+            border-color: #FFFFFF66;
+            drop-shadow-blur: 24px;
+            drop-shadow-offset-y: 8px;
+            drop-shadow-color: Glass.shade;
+            clip: true;
+
+            VerticalLayout {
+                padding: 18px;
+                alignment: end;
+                spacing: 4px;
+
+                Text {
+                    text: root.expression == "" ? "0" : root.expression;
+                    color: #FFFFFF;
+                    font-size: root.expression.character-count > 14 ? 28px : 42px;
+                    font-weight: 300;
+                    horizontal-alignment: right;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.preview-result == "" ? " " : (root.is-error ? root.preview-result : "= " + root.preview-result);
+                    color: root.is-error ? Glass.alert : #FFFFFFB0;
+                    font-size: 18px;
+                    horizontal-alignment: right;
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                spacing: 10px;
+                GlassKey { label: "sin"; font-px: 16px; tint: #FFFFFF14; clicked => { root.press-key("sin("); } }
+                GlassKey { label: "cos"; font-px: 16px; tint: #FFFFFF14; clicked => { root.press-key("cos("); } }
+                GlassKey { label: "√"; font-px: 18px; tint: #FFFFFF14; clicked => { root.press-key("√("); } }
+                GlassKey { label: "xʸ"; font-px: 18px; tint: #FFFFFF14; clicked => { root.press-key("^"); } }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                GlassKey { label: "AC"; bold: true; text-color: Glass.alert; tint: Glass.alert-tint; clicked => { root.press-key("AC"); } }
+                GlassKey { label: "⌫"; clicked => { root.press-key("BACKSPACE"); } }
+                GlassKey { label: "( )"; clicked => { root.press-key("()"); } }
+                GlassKey { label: "÷"; font-px: 24px; tint: #FFFFFF3A; clicked => { root.press-key("÷"); } }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                GlassKey { label: "7"; clicked => { root.press-key("7"); } }
+                GlassKey { label: "8"; clicked => { root.press-key("8"); } }
+                GlassKey { label: "9"; clicked => { root.press-key("9"); } }
+                GlassKey { label: "×"; font-px: 24px; tint: #FFFFFF3A; clicked => { root.press-key("×"); } }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                GlassKey { label: "4"; clicked => { root.press-key("4"); } }
+                GlassKey { label: "5"; clicked => { root.press-key("5"); } }
+                GlassKey { label: "6"; clicked => { root.press-key("6"); } }
+                GlassKey { label: "−"; font-px: 24px; tint: #FFFFFF3A; clicked => { root.press-key("−"); } }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                GlassKey { label: "1"; clicked => { root.press-key("1"); } }
+                GlassKey { label: "2"; clicked => { root.press-key("2"); } }
+                GlassKey { label: "3"; clicked => { root.press-key("3"); } }
+                GlassKey { label: "+"; font-px: 24px; tint: #FFFFFF3A; clicked => { root.press-key("+"); } }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                GlassKey { label: "0"; clicked => { root.press-key("0"); } }
+                GlassKey { label: "."; font-px: 24px; clicked => { root.press-key("."); } }
+                GlassKey { label: "%"; clicked => { root.press-key("%"); } }
+                GlassKey { label: "="; font-px: 26px; bold: true; tint: #FFFFFF66; clicked => { root.press-key("="); } }
+            }
+        }
+    }
+}
