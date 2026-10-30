@@ -46,7 +46,7 @@ assets = [
 
 # Universal AppImage (.AppImage via `cargo appimage`)
 [package.metadata.appimage]
-icon = "packaging/arithmetic.svg"
+icon = "packaging/arithmetic.png"
 auto_link = true
 assets = ["skins"]
 

@@ -30,7 +30,7 @@ jobs:
 
       - name: Install appimagetool (Extracted, no FUSE needed)
         run: |
-          curl -sLo /tmp/appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          curl -sLo /tmp/appimagetool "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage"
           chmod +x /tmp/appimagetool
           cd /tmp && /tmp/appimagetool --appimage-extract
           sudo mv /tmp/squashfs-root /usr/local/appimagetool
