@@ -19,7 +19,12 @@ pub fn skin_search_directories() -> Vec<PathBuf> {
     if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
         dirs.push(PathBuf::from(xdg).join("arithmetic").join("skins"));
     } else if let Some(home) = std::env::var_os("HOME") {
-        dirs.push(PathBuf::from(home).join(".config").join("arithmetic").join("skins"));
+        dirs.push(
+            PathBuf::from(home)
+                .join(".config")
+                .join("arithmetic")
+                .join("skins"),
+        );
     }
 
     // 2. User data directory: $XDG_DATA_HOME/arithmetic/skins or ~/.local/share/arithmetic/skins
@@ -29,7 +34,13 @@ pub fn skin_search_directories() -> Vec<PathBuf> {
     if let Some(xdg) = std::env::var_os("XDG_DATA_HOME") {
         dirs.push(PathBuf::from(xdg).join("arithmetic").join("skins"));
     } else if let Some(home) = std::env::var_os("HOME") {
-        dirs.push(PathBuf::from(home).join(".local").join("share").join("arithmetic").join("skins"));
+        dirs.push(
+            PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("arithmetic")
+                .join("skins"),
+        );
     }
 
     // 3. Executable directory: <exe_dir>/skins and <exe_dir>/../share/arithmetic/skins
@@ -37,7 +48,13 @@ pub fn skin_search_directories() -> Vec<PathBuf> {
         && let Some(parent) = exe.parent()
     {
         dirs.push(parent.join("skins"));
-        dirs.push(parent.join("..").join("share").join("arithmetic").join("skins"));
+        dirs.push(
+            parent
+                .join("..")
+                .join("share")
+                .join("arithmetic")
+                .join("skins"),
+        );
     }
 
     // AppImage: bundled skins are unpacked at the AppDir root

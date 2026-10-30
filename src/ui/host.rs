@@ -6,13 +6,13 @@
 //! Every property and callback except `press-key` is optional: a skin only
 //! declares the ones it uses.
 
-use crate::core::editor::{apply_key_press, clamp_char_boundary, has_operator_or_func, KeyAction};
+use crate::core::editor::{KeyAction, apply_key_press, clamp_char_boundary, has_operator_or_func};
 use crate::core::engine::{evaluate_expression, format_number};
 use crate::core::paths::app_config_dir;
-use crate::skin::{compile_skin_layout, discover_skins, SkinInfo};
+use crate::skin::{SkinInfo, compile_skin_layout, discover_skins};
 use crate::storage::{
-    append_history_entry, clear_saved_history, load_raw_history, load_settings, save_settings,
-    SkinPrefs,
+    SkinPrefs, append_history_entry, clear_saved_history, load_raw_history, load_settings,
+    save_settings,
 };
 use crate::{NoSkinWindow, SkinDialog, SkinModelEntry, SkinOptionEntry};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
@@ -82,7 +82,11 @@ fn live_preview(expr: &str, use_radians: bool) -> String {
     match evaluate_expression(expr, use_radians) {
         Ok(val) => {
             let formatted = format_number(val);
-            if formatted != expr { formatted } else { String::new() }
+            if formatted != expr {
+                formatted
+            } else {
+                String::new()
+            }
         }
         Err(_) => String::new(),
     }
@@ -103,7 +107,12 @@ fn parse_hex_color(hex: &str) -> Option<slint::Color> {
     let byte = |i: usize| u8::from_str_radix(hex.get(i..i + 2)?, 16).ok();
     match hex.len() {
         6 => Some(slint::Color::from_rgb_u8(byte(0)?, byte(2)?, byte(4)?)),
-        8 => Some(slint::Color::from_argb_u8(byte(6)?, byte(0)?, byte(2)?, byte(4)?)),
+        8 => Some(slint::Color::from_argb_u8(
+            byte(6)?,
+            byte(0)?,
+            byte(2)?,
+            byte(4)?,
+        )),
         _ => None,
     }
 }
@@ -140,7 +149,12 @@ fn skin_entry(skin: &SkinInfo) -> SkinModelEntry {
         .color_themes
         .iter()
         .map(|t| {
-            let swatch: Vec<slint::Color> = t.swatch.iter().filter_map(|h| parse_hex_color(h)).take(3).collect();
+            let swatch: Vec<slint::Color> = t
+                .swatch
+                .iter()
+                .filter_map(|h| parse_hex_color(h))
+                .take(3)
+                .collect();
             SkinOptionEntry {
                 id: t.id.clone().into(),
                 name: t.name.clone().into(),
@@ -179,7 +193,9 @@ fn open_skins_folder() {
     if let Some(cfg_dir) = app_config_dir() {
         let skins_dir = cfg_dir.join("skins");
         let _ = std::fs::create_dir_all(&skins_dir);
-        let _ = std::process::Command::new("xdg-open").arg(&skins_dir).spawn();
+        let _ = std::process::Command::new("xdg-open")
+            .arg(&skins_dir)
+            .spawn();
     }
 }
 
@@ -300,15 +316,21 @@ impl App {
             return;
         };
         self.dialog.set_selected_skin(active.id.as_str().into());
-        self.dialog.set_selected_layout(active.layout.as_str().into());
-        self.dialog.set_selected_color_theme(active.color_theme.as_str().into());
+        self.dialog
+            .set_selected_layout(active.layout.as_str().into());
+        self.dialog
+            .set_selected_color_theme(active.color_theme.as_str().into());
 
         let skins = self.skins.borrow();
         let Some((skin, entry)) = skins.iter().find(|(s, _)| s.manifest.id == active.id) else {
             return;
         };
         self.dialog.set_current(entry.clone());
-        let theme = skin.manifest.color_themes.iter().find(|t| t.id == active.color_theme);
+        let theme = skin
+            .manifest
+            .color_themes
+            .iter()
+            .find(|t| t.id == active.color_theme);
         let preview = load_image(skin.preview_path(theme));
         self.dialog.set_has_current_preview(preview.is_some());
         self.dialog.set_current_preview(preview.unwrap_or_default());
@@ -318,9 +340,11 @@ impl App {
     /// last used". A colour change on the active layout is applied live; anything
     /// else needs the skin recompiled.
     fn apply_selection(self: &Rc<Self>, id: String, layout: String, color_theme: String) {
-        let same_layout = self.active.borrow().as_ref().is_some_and(|a| {
-            a.id == id && (layout.is_empty() || a.layout == layout)
-        });
+        let same_layout = self
+            .active
+            .borrow()
+            .as_ref()
+            .is_some_and(|a| a.id == id && (layout.is_empty() || a.layout == layout));
         if same_layout {
             if !color_theme.is_empty() {
                 self.apply_color_theme(&color_theme);
@@ -347,7 +371,12 @@ impl App {
         });
     }
 
-    fn activate(self: &Rc<Self>, skin_id: &str, layout_id: &str, color_theme_id: &str) -> Result<(), String> {
+    fn activate(
+        self: &Rc<Self>,
+        skin_id: &str,
+        layout_id: &str,
+        color_theme_id: &str,
+    ) -> Result<(), String> {
         let skin = self
             .skins
             .borrow()
@@ -361,12 +390,16 @@ impl App {
         let mut settings = load_settings();
         let saved = settings.prefs_for(skin_id);
         let pick = |requested: &str, saved: &str| -> Option<String> {
-            [requested, saved].into_iter().find(|v| !v.is_empty()).map(str::to_string)
+            [requested, saved]
+                .into_iter()
+                .find(|v| !v.is_empty())
+                .map(str::to_string)
         };
         let layout = skin
             .resolve_layout(pick(layout_id, &saved.layout).as_deref())
             .clone();
-        let color_theme = skin.resolve_color_theme(pick(color_theme_id, &saved.color_theme).as_deref());
+        let color_theme =
+            skin.resolve_color_theme(pick(color_theme_id, &saved.color_theme).as_deref());
 
         let definition = compile_skin_layout(skin, &layout)?;
         let instance = definition
@@ -375,9 +408,17 @@ impl App {
 
         self.wire_skin(&instance);
         self.push_state(&instance);
-        set_opt(&instance, "history", Value::Model(ModelRc::from(self.history.clone())));
+        set_opt(
+            &instance,
+            "history",
+            Value::Model(ModelRc::from(self.history.clone())),
+        );
         if !color_theme.is_empty() {
-            set_opt(&instance, "color-theme", Value::String(color_theme.as_str().into()));
+            set_opt(
+                &instance,
+                "color-theme",
+                Value::String(color_theme.as_str().into()),
+            );
         }
 
         instance.window().on_close_requested(|| {
@@ -404,10 +445,13 @@ impl App {
         }
         let _ = self.no_skin.hide();
 
-        settings.set_active(skin_id, SkinPrefs {
-            layout: layout.id.clone(),
-            color_theme: color_theme.clone(),
-        });
+        settings.set_active(
+            skin_id,
+            SkinPrefs {
+                layout: layout.id.clone(),
+                color_theme: color_theme.clone(),
+            },
+        );
         save_settings(&settings);
         self.sync_dialog();
         Ok(())
@@ -428,14 +472,21 @@ impl App {
             if resolved.is_empty() {
                 return;
             }
-            set_opt(&active.instance, "color-theme", Value::String(resolved.as_str().into()));
+            set_opt(
+                &active.instance,
+                "color-theme",
+                Value::String(resolved.as_str().into()),
+            );
             active.color_theme = resolved.clone();
 
             let mut settings = load_settings();
-            settings.set_active(&active.id, SkinPrefs {
-                layout: active.layout.clone(),
-                color_theme: resolved,
-            });
+            settings.set_active(
+                &active.id,
+                SkinPrefs {
+                    layout: active.layout.clone(),
+                    color_theme: resolved,
+                },
+            );
             save_settings(&settings);
         }
         self.sync_dialog();
@@ -456,23 +507,47 @@ impl App {
             _ => String::new(),
         };
 
-        on("press-key", Box::new(move |app, args| app.press_key(&arg_string(args))));
-        on("expression-edited", Box::new(|app, _| app.expression_edited()));
-        on("toggle-angle-unit", Box::new(|app, _| app.toggle_angle_unit()));
-        on("clear-history", Box::new(|app, _| {
-            app.history.clear();
-            clear_saved_history();
-        }));
-        on("select-history-item", Box::new(move |app, args| app.load_expression(arg_string(args))));
-        on("set-color-theme", Box::new(move |app, args| app.apply_color_theme(&arg_string(args))));
-        on("close-window", Box::new(|_, _| {
-            let _ = slint::quit_event_loop();
-        }));
-        on("open-skin-dialog", Box::new(|app, _| {
-            if let Err(e) = show_window(&app.dialog) {
-                eprintln!("Failed to show skin dialog: {e:?}");
-            }
-        }));
+        on(
+            "press-key",
+            Box::new(move |app, args| app.press_key(&arg_string(args))),
+        );
+        on(
+            "expression-edited",
+            Box::new(|app, _| app.expression_edited()),
+        );
+        on(
+            "toggle-angle-unit",
+            Box::new(|app, _| app.toggle_angle_unit()),
+        );
+        on(
+            "clear-history",
+            Box::new(|app, _| {
+                app.history.clear();
+                clear_saved_history();
+            }),
+        );
+        on(
+            "select-history-item",
+            Box::new(move |app, args| app.load_expression(arg_string(args))),
+        );
+        on(
+            "set-color-theme",
+            Box::new(move |app, args| app.apply_color_theme(&arg_string(args))),
+        );
+        on(
+            "close-window",
+            Box::new(|_, _| {
+                let _ = slint::quit_event_loop();
+            }),
+        );
+        on(
+            "open-skin-dialog",
+            Box::new(|app, _| {
+                if let Err(e) = show_window(&app.dialog) {
+                    eprintln!("Failed to show skin dialog: {e:?}");
+                }
+            }),
+        );
 
         let weak = Rc::downgrade(self);
         let _ = inst.set_callback("switch-skin", move |args| {
@@ -505,9 +580,17 @@ impl App {
 
     fn push_state(&self, inst: &ComponentInstance) {
         let st = self.state.borrow();
-        set_opt(inst, "expression", Value::String(st.expression.as_str().into()));
+        set_opt(
+            inst,
+            "expression",
+            Value::String(st.expression.as_str().into()),
+        );
         set_opt(inst, "cursor-byte-offset", Value::Number(st.cursor as f64));
-        set_opt(inst, "preview-result", Value::String(st.preview.as_str().into()));
+        set_opt(
+            inst,
+            "preview-result",
+            Value::String(st.preview.as_str().into()),
+        );
         set_opt(inst, "is-error", Value::Bool(st.is_error));
         set_opt(inst, "just-evaluated", Value::Bool(st.just_evaluated));
         set_opt(inst, "use-radians", Value::Bool(st.use_radians));
@@ -581,7 +664,11 @@ impl App {
             st.just_evaluated = false;
             Self::refresh_preview(&mut st);
             // Only push derived values: rewriting `expression` would reset the skin's caret.
-            set_opt(inst, "preview-result", Value::String(st.preview.as_str().into()));
+            set_opt(
+                inst,
+                "preview-result",
+                Value::String(st.preview.as_str().into()),
+            );
             set_opt(inst, "is-error", Value::Bool(st.is_error));
             set_opt(inst, "just-evaluated", Value::Bool(false));
         });

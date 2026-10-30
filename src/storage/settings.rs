@@ -36,7 +36,6 @@ fn default_active_skin() -> String {
     "".to_string()
 }
 
-
 impl Default for AppSettings {
     fn default() -> Self {
         Self {

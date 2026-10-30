@@ -132,15 +132,27 @@ impl Parser {
                 let arg = self.parse_primary()?;
                 match name.as_str() {
                     "sin" => {
-                        let a = if self.use_radians { arg } else { arg.to_radians() };
+                        let a = if self.use_radians {
+                            arg
+                        } else {
+                            arg.to_radians()
+                        };
                         Ok(a.sin())
                     }
                     "cos" => {
-                        let a = if self.use_radians { arg } else { arg.to_radians() };
+                        let a = if self.use_radians {
+                            arg
+                        } else {
+                            arg.to_radians()
+                        };
                         Ok(a.cos())
                     }
                     "tan" => {
-                        let a = if self.use_radians { arg } else { arg.to_radians() };
+                        let a = if self.use_radians {
+                            arg
+                        } else {
+                            arg.to_radians()
+                        };
                         Ok(a.tan())
                     }
                     "asin" => {

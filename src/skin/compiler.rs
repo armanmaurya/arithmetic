@@ -25,9 +25,12 @@ fn compile_file(skin: &SkinInfo, file: &Path) -> Result<ComponentDefinition, Str
         ));
     }
 
-    result
-        .component("AppWindow")
-        .ok_or_else(|| format!("Skin '{}' does not export an 'AppWindow' component", skin.manifest.id))
+    result.component("AppWindow").ok_or_else(|| {
+        format!(
+            "Skin '{}' does not export an 'AppWindow' component",
+            skin.manifest.id
+        )
+    })
 }
 
 /// Compiles the skin's default layout.
@@ -36,6 +39,9 @@ pub fn compile_skin_definition(skin: &SkinInfo) -> Result<ComponentDefinition, S
 }
 
 /// Compiles a specific layout of the skin.
-pub fn compile_skin_layout(skin: &SkinInfo, layout: &SkinLayout) -> Result<ComponentDefinition, String> {
+pub fn compile_skin_layout(
+    skin: &SkinInfo,
+    layout: &SkinLayout,
+) -> Result<ComponentDefinition, String> {
     compile_file(skin, &skin.layout_file(layout))
 }

@@ -2,6 +2,7 @@
 /target/
 /libs/
 /.data/
+/.config/
 **/*.rs.bk
 
 # Package outputs created during local packaging tests

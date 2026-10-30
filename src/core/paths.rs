@@ -46,7 +46,10 @@ pub fn app_data_dir() -> Option<PathBuf> {
         }
     }
     if let Some(home) = std::env::var_os("HOME") {
-        let p = PathBuf::from(home).join(".local").join("share").join("arithmetic");
+        let p = PathBuf::from(home)
+            .join(".local")
+            .join("share")
+            .join("arithmetic");
         if is_dir_writable(&p) {
             return Some(p);
         }

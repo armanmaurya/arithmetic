@@ -57,12 +57,7 @@ pub fn has_operator_or_func(expr: &str) -> bool {
         || expr.contains('%')
 }
 
-pub fn apply_key_press(
-    expr: &str,
-    cursor: usize,
-    key_str: &str,
-    just_eval: bool,
-) -> KeyAction {
+pub fn apply_key_press(expr: &str, cursor: usize, key_str: &str, just_eval: bool) -> KeyAction {
     match key_str {
         "AC" => KeyAction::Clear,
         "=" => KeyAction::Evaluate,
@@ -88,10 +83,7 @@ pub fn apply_key_press(
             let close_count = before_str.chars().filter(|&c| c == ')').count();
             let last_char = before_str.chars().last();
             let can_close = open_count > close_count
-                && matches!(
-                    last_char,
-                    Some('0'..='9' | ')' | 'π' | 'e' | '%' | '!')
-                );
+                && matches!(last_char, Some('0'..='9' | ')' | 'π' | 'e' | '%' | '!'));
             if can_close {
                 before_str.push(')');
             } else {

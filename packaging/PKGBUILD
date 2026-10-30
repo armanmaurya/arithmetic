@@ -1,6 +1,6 @@
 # Maintainer: Arman Maurya <mauryaarman5@gmail.com>
 pkgname=arithmetic
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Material 3 scientific calculator written in Rust and Slint"
 arch=('x86_64' 'aarch64')

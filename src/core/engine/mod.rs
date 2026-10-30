@@ -4,7 +4,7 @@ pub mod tokenizer;
 
 pub use formatter::format_number;
 pub use parser::Parser;
-pub use tokenizer::{tokenize, Token};
+pub use tokenizer::{Token, tokenize};
 
 pub fn evaluate_expression(expr: &str, use_radians: bool) -> Result<f64, String> {
     let trimmed = expr.trim();
