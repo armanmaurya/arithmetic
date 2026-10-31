@@ -48,6 +48,18 @@ assets = [
 [package.metadata.appimage]
 icon = "packaging/arithmetic.png"
 auto_link = true
+# Never bundle glibc (it must match the host's ld.so) or libs that read host config files.
+auto_link_exclude_list = [
+    "libc.so*",
+    "libm.so*",
+    "libdl.so*",
+    "librt.so*",
+    "libpthread.so*",
+    "ld-linux*",
+    "libgcc_s.so*",
+    "libfontconfig.so*",
+    "libfreetype.so*",
+]
 assets = ["skins"]
 
 # Arch Linux AUR (`cargo aur`)
