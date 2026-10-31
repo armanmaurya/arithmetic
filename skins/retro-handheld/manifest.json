@@ -1,7 +1,7 @@
 {
   "id": "retro-handheld",
   "name": "Retro Handheld",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Arithmetic Team",
   "description": "Dot-matrix handheld with a D-pad operator cluster",
   "preview": "previews/classic.png",

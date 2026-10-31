@@ -27,49 +27,397 @@ global Handheld {
     out property <color> rubber-ink: pocket ? #24262B : (berry ? #2A1F33 : #2E3038);
 }
 
-component PadArm inherits Rectangle {
-    in property <string> label;
-    callback clicked <=> touch.clicked;
+// The D-pad is one rigid cross rocking on a centre pivot, like the real thing:
+// pressing an arm sinks it, lifts the opposite arm, and shades the side arms.
+// Direction codes: 0 = rest, 1 = up, 2 = down, 3 = left, 4 = right.
+component DPad inherits Rectangle {
+    in property <string> up-label;
+    in property <string> down-label;
+    in property <string> left-label;
+    in property <string> right-label;
+    // Direction held from outside (keyboard), shown when no arm is pressed
+    in property <int> held-dir: 0;
+    callback up-clicked <=> up-touch.clicked;
+    callback down-clicked <=> down-touch.clicked;
+    callback left-clicked <=> left-touch.clicked;
+    callback right-clicked <=> right-touch.clicked;
 
-    background: touch.pressed ? Handheld.pad.darker(40%) : Handheld.pad;
-    border-radius: 3px;
+    width: 120px;
+    height: 120px;
 
+    property <int> dir: up-touch.pressed ? 1 : (down-touch.pressed ? 2 : (left-touch.pressed ? 3 : (right-touch.pressed ? 4 : root.held-dir)));
+    property <bool> up: dir == 1;
+    property <bool> down: dir == 2;
+    property <bool> left: dir == 3;
+    property <bool> right: dir == 4;
+
+    // Snap down fast on press, spring back with a little overshoot on release
+    property <bool> active: dir != 0;
+    property <duration> travel: active ? 45ms : 190ms;
+
+    // Arm tips, + = toward the bottom/right of the screen. Tilting
+    // foreshortens the cross along that axis: the sunk tip pulls in the most,
+    // the lifted tip pulls in a little as it rocks up toward the viewer.
+    property <length> top-tip: up ? 3px : (down ? 2.5px : 0px);
+    property <length> bottom-tip: down ? -3px : (up ? -2.5px : 0px);
+    property <length> left-tip: left ? 3px : (right ? 2.5px : 0px);
+    property <length> right-tip: right ? -3px : (left ? -2.5px : 0px);
+    animate top-tip, bottom-tip, left-tip, right-tip { duration: root.travel; easing: root.active ? ease-out : ease-out-back; }
+
+    // The side arms roll with the tilt: the edge nearest the pressed arm dips
+    // and the far edge lifts, so the perpendicular bar foreshortens across.
+    property <length> hbar-top: up ? 3px : (down ? 1px : 0px);
+    property <length> hbar-bottom: down ? -3px : (up ? -1px : 0px);
+    property <length> vbar-left: left ? 3px : (right ? 1px : 0px);
+    property <length> vbar-right: right ? -3px : (left ? -1px : 0px);
+    animate hbar-top, hbar-bottom, vbar-left, vbar-right { duration: root.travel; easing: root.active ? ease-out : ease-out-back; }
+
+    // Depth of the cross body. The side walls show on the side facing away
+    // from the pressed arm, so whichever arm sinks, the rest of the cross
+    // visibly stands up out of the socket. At rest light comes from above and
+    // the walls show along the bottom edges.
+    property <length> ext-x: left ? 6.5px : (right ? -6.5px : 0px);
+    property <length> ext-y: up ? 6.5px : (down ? -6.5px : (left || right ? 0px : 4px));
+    animate ext-x, ext-y { duration: root.travel; easing: root.active ? ease-out : ease-out-back; }
+
+    // Light falls from the top-left; tilting toward an arm turns it into shade
+    property <color> tint-top: up ? #00000090 : (down ? #FFFFFF3A : #FFFFFF14);
+    property <color> tint-bottom: up ? #FFFFFF34 : (down ? #00000090 : #00000030);
+    property <color> tint-left: left ? #00000090 : (right ? #FFFFFF38 : #FFFFFF0C);
+    property <color> tint-right: left ? #FFFFFF38 : (right ? #00000090 : #0000001C);
+    animate tint-top, tint-bottom, tint-left, tint-right { duration: root.travel; easing: root.active ? ease-out : ease-out-back; }
+
+    // Shading across the side arms as they roll
+    property <color> side-top: up ? #00000080 : (down ? #FFFFFF34 : #FFFFFF0A);
+    property <color> side-bottom: up ? #FFFFFF34 : (down ? #00000080 : #0000001A);
+    property <color> side-left: left ? #00000080 : (right ? #FFFFFF34 : #FFFFFF06);
+    property <color> side-right: left ? #FFFFFF34 : (right ? #00000080 : #00000010);
+    animate side-top, side-bottom, side-left, side-right { duration: root.travel; easing: root.active ? ease-out : ease-out-back; }
+
+    property <color> wall: Handheld.pad.mix(#000000, 0.5);
+    property <color> ink-sunk: Handheld.pad-ink.with-alpha(0.55);
+    property <color> hover-glow: #FFFFFF10;
+
+    // Socket cut into the shell
+    Rectangle {
+        x: 36px;
+        y: -4px;
+        width: 48px;
+        height: 128px;
+        border-radius: 6px;
+        background: Handheld.seam.darker(25%);
+    }
+    Rectangle {
+        x: -4px;
+        y: 36px;
+        width: 128px;
+        height: 48px;
+        border-radius: 6px;
+        background: Handheld.seam.darker(25%);
+    }
+
+    // Cross body: the faces below sit on top of it, offset by the depth vector,
+    // so the uncovered strip reads as the side walls. Shadows go first so they
+    // never darken the walls themselves.
+    // Each bar is clipped to its arm of the socket so walls never poke out.
+    for layer in 2: Rectangle {
+        Rectangle {
+            x: 36px;
+            y: -4px;
+            width: 48px;
+            height: 128px;
+            border-radius: 6px;
+            clip: true;
+
+            Rectangle {
+                x: 4px + root.vbar-left + root.ext-x;
+                y: 4px + root.top-tip + root.ext-y;
+                width: 40px - root.vbar-left + root.vbar-right;
+                height: 120px - root.top-tip + root.bottom-tip;
+                border-radius: 4px;
+                background: root.wall;
+                drop-shadow-blur: layer == 0 ? 6px : 0px;
+                drop-shadow-offset-x: layer == 0 ? root.ext-x / 2 : 0px;
+                drop-shadow-offset-y: layer == 0 ? root.ext-y / 2 : 0px;
+                drop-shadow-color: layer == 0 ? #00000070 : transparent;
+            }
+        }
+        Rectangle {
+            x: -4px;
+            y: 36px;
+            width: 128px;
+            height: 48px;
+            border-radius: 6px;
+            clip: true;
+
+            Rectangle {
+                x: 4px + root.left-tip + root.ext-x;
+                y: 4px + root.hbar-top + root.ext-y;
+                width: 120px - root.left-tip + root.right-tip;
+                height: 40px - root.hbar-top + root.hbar-bottom;
+                border-radius: 4px;
+                background: root.wall;
+                drop-shadow-blur: layer == 0 ? 6px : 0px;
+                drop-shadow-offset-x: layer == 0 ? root.ext-x / 2 : 0px;
+                drop-shadow-offset-y: layer == 0 ? root.ext-y / 2 : 0px;
+                drop-shadow-color: layer == 0 ? #00000070 : transparent;
+            }
+        }
+    }
+
+    // Horizontal bar face (left + right arms)
+    Rectangle {
+        x: root.left-tip;
+        y: 40px + root.hbar-top;
+        width: 120px - root.left-tip + root.right-tip;
+        height: 40px - root.hbar-top + root.hbar-bottom;
+        border-radius: 4px;
+        background: Handheld.pad;
+
+        Rectangle {
+            border-radius: parent.border-radius;
+            background: @linear-gradient(90deg, root.tint-left 0%, root.tint-right 100%);
+        }
+        // Roll from an up/down press
+        Rectangle {
+            border-radius: parent.border-radius;
+            background: @linear-gradient(180deg, root.side-top 0%, root.side-bottom 100%);
+        }
+        // Top bevel
+        Rectangle {
+            x: 3px;
+            y: 1px;
+            width: parent.width - 6px;
+            height: 1px;
+            background: root.up ? #FFFFFF08 : #FFFFFF1C;
+        }
+        // Outer-end rims: catch the light when that end lifts
+        Rectangle {
+            x: 1px;
+            y: 3px;
+            width: 1.5px;
+            height: parent.height - 6px;
+            background: root.right ? #FFFFFF48 : (root.left ? transparent : #FFFFFF10);
+        }
+        Rectangle {
+            x: parent.width - 2.5px;
+            y: 3px;
+            width: 1.5px;
+            height: parent.height - 6px;
+            background: root.left ? #FFFFFF30 : transparent;
+        }
+    }
+
+    // Vertical bar face (up + hub + down)
+    Rectangle {
+        x: 40px + root.vbar-left;
+        y: root.top-tip;
+        width: 40px - root.vbar-left + root.vbar-right;
+        height: 120px - root.top-tip + root.bottom-tip;
+        border-radius: 4px;
+        background: Handheld.pad;
+
+        Rectangle {
+            border-radius: parent.border-radius;
+            background: @linear-gradient(180deg, root.tint-top 0%, root.tint-bottom 100%);
+        }
+        // Roll from a left/right press
+        Rectangle {
+            border-radius: parent.border-radius;
+            background: @linear-gradient(90deg, root.side-left 0%, root.side-right 100%);
+        }
+        // Top bevel
+        Rectangle {
+            x: 3px;
+            y: 1px;
+            width: parent.width - 6px;
+            height: root.down ? 1.5px : 1px;
+            background: root.up ? #FFFFFF08 : (root.down ? #FFFFFF55 : #FFFFFF26);
+        }
+    }
+
+    // Hover glow on the arm under the pointer
+    Rectangle {
+        x: 40px + root.vbar-left;
+        y: root.top-tip;
+        width: 40px - root.vbar-left + root.vbar-right;
+        height: 40px;
+        border-radius: 4px;
+        background: up-touch.has-hover && !root.active ? root.hover-glow : transparent;
+    }
+    Rectangle {
+        x: 40px + root.vbar-left;
+        y: 80px + root.bottom-tip;
+        width: 40px - root.vbar-left + root.vbar-right;
+        height: 40px;
+        border-radius: 4px;
+        background: down-touch.has-hover && !root.active ? root.hover-glow : transparent;
+    }
+    Rectangle {
+        x: root.left-tip;
+        y: 40px + root.hbar-top;
+        width: 40px;
+        height: 40px - root.hbar-top + root.hbar-bottom;
+        border-radius: 4px;
+        background: left-touch.has-hover && !root.active ? root.hover-glow : transparent;
+    }
+    Rectangle {
+        x: 80px + root.right-tip;
+        y: 40px + root.hbar-top;
+        width: 40px;
+        height: 40px - root.hbar-top + root.hbar-bottom;
+        border-radius: 4px;
+        background: right-touch.has-hover && !root.active ? root.hover-glow : transparent;
+    }
+
+    // Pivot dimple
+    Rectangle {
+        x: 52px + (root.vbar-left + root.vbar-right) / 2;
+        y: 52px + (root.hbar-top + root.hbar-bottom) / 2;
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: @linear-gradient(180deg, Handheld.pad.mix(#000000, 0.55) 0%, Handheld.pad.mix(#FFFFFF, 0.9) 100%);
+    }
+
+    // Arm labels ride on the tilted faces
     Text {
-        text: root.label;
-        color: Handheld.pad-ink;
-        font-size: 18px;
+        x: 40px + root.vbar-left;
+        y: root.top-tip;
+        width: 40px - root.vbar-left + root.vbar-right;
+        height: 40px;
+        text: root.up-label;
+        color: root.up ? root.ink-sunk : Handheld.pad-ink;
+        font-size: root.up ? 16px : 18px;
+        font-weight: 800;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    Text {
+        x: 40px + root.vbar-left;
+        y: 80px + root.bottom-tip;
+        width: 40px - root.vbar-left + root.vbar-right;
+        height: 40px;
+        text: root.down-label;
+        color: root.down ? root.ink-sunk : Handheld.pad-ink;
+        font-size: root.down ? 16px : 18px;
+        font-weight: 800;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    Text {
+        x: root.left-tip;
+        y: 40px + root.hbar-top;
+        width: 40px;
+        height: 40px - root.hbar-top + root.hbar-bottom;
+        text: root.left-label;
+        color: root.left ? root.ink-sunk : Handheld.pad-ink;
+        font-size: root.left ? 16px : 18px;
+        font-weight: 800;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    Text {
+        x: 80px + root.right-tip;
+        y: 40px + root.hbar-top;
+        width: 40px;
+        height: 40px - root.hbar-top + root.hbar-bottom;
+        text: root.right-label;
+        color: root.right ? root.ink-sunk : Handheld.pad-ink;
+        font-size: root.right ? 16px : 18px;
         font-weight: 800;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
 
-    touch := TouchArea {
+    // Hit areas stay on the resting geometry so the target never moves
+    up-touch := TouchArea {
+        x: 40px;
+        y: 0px;
+        width: 40px;
+        height: 44px;
+        mouse-cursor: pointer;
+    }
+    down-touch := TouchArea {
+        x: 40px;
+        y: 76px;
+        width: 40px;
+        height: 44px;
+        mouse-cursor: pointer;
+    }
+    left-touch := TouchArea {
+        x: 0px;
+        y: 40px;
+        width: 44px;
+        height: 40px;
+        mouse-cursor: pointer;
+    }
+    right-touch := TouchArea {
+        x: 76px;
+        y: 40px;
+        width: 44px;
+        height: 40px;
         mouse-cursor: pointer;
     }
 }
 
+// All buttons share the D-pad's feel: the face sinks into a visible body,
+// snapping down fast on press and springing back with a little overshoot.
+
 component RoundButton inherits Rectangle {
     in property <string> label;
     in property <string> caption;
+    // Held from outside (keyboard)
+    in property <bool> held;
     callback clicked <=> touch.clicked;
 
     width: 58px;
     height: 58px;
 
+    property <bool> down: touch.pressed || root.held;
+    property <length> sink: down ? 4px : 0px;
+    animate sink { duration: root.down ? 45ms : 190ms; easing: root.down ? ease-out : ease-out-back; }
+    // Convex face at rest, dished in when pressed
+    property <color> shade-top: down ? #00000040 : #FFFFFF30;
+    property <color> shade-bottom: down ? #FFFFFF14 : #00000030;
+    animate shade-top, shade-bottom { duration: root.down ? 45ms : 190ms; }
+
+    // Socket cut into the shell
     Rectangle {
-        y: touch.pressed ? 2px : 0px;
+        x: -3px;
+        y: -3px;
+        width: 64px;
+        height: 69px;
+        border-radius: 32px;
+        background: Handheld.seam.darker(25%);
+    }
+    // Button body (side wall)
+    Rectangle {
+        y: 5px;
         width: 58px;
         height: 58px;
         border-radius: 29px;
-        background: touch.pressed ? Handheld.ab.darker(30%) : Handheld.ab;
-        drop-shadow-blur: touch.pressed ? 1px : 4px;
-        drop-shadow-offset-y: touch.pressed ? 1px : 3px;
-        drop-shadow-color: #00000070;
+        background: Handheld.ab.mix(#000000, 0.5);
+        drop-shadow-blur: 6px - root.sink;
+        drop-shadow-offset-y: 3px - root.sink / 2;
+        drop-shadow-color: #00000066;
+    }
+    // Face
+    Rectangle {
+        y: root.sink;
+        width: 58px;
+        height: 58px;
+        border-radius: 29px;
+        background: touch.has-hover && !root.down ? Handheld.ab.brighter(8%) : Handheld.ab;
 
+        Rectangle {
+            border-radius: 29px;
+            background: @linear-gradient(160deg, root.shade-top 0%, root.shade-bottom 100%);
+        }
         Text {
             text: root.label;
             color: Handheld.ab-ink;
-            font-size: 22px;
+            font-size: root.down ? 20px : 22px;
             font-weight: 800;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -77,7 +425,7 @@ component RoundButton inherits Rectangle {
     }
 
     Text {
-        y: 62px;
+        y: 68px;
         width: 58px;
         text: root.caption;
         color: Handheld.brand;
@@ -87,6 +435,7 @@ component RoundButton inherits Rectangle {
     }
 
     touch := TouchArea {
+        height: 63px;
         mouse-cursor: pointer;
     }
 }
@@ -94,21 +443,53 @@ component RoundButton inherits Rectangle {
 component PillButton inherits Rectangle {
     in property <string> label;
     in property <string> caption;
+    // Held from outside (keyboard)
+    in property <bool> held;
     callback clicked <=> touch.clicked;
 
     width: 52px;
-    height: 34px;
+    height: 38px;
 
+    property <bool> down: touch.pressed || root.held;
+    property <length> sink: down ? 2.5px : 0px;
+    animate sink { duration: root.down ? 45ms : 190ms; easing: root.down ? ease-out : ease-out-back; }
+
+    // Groove in the shell
     Rectangle {
-        y: 0;
+        x: -2px;
+        y: -2px;
+        width: 56px;
+        height: 19px;
+        border-radius: 9.5px;
+        background: Handheld.seam.darker(25%);
+        transform-rotation: -25deg;
+    }
+    // Pill body (side wall)
+    Rectangle {
+        y: 3px;
         height: 12px;
         border-radius: 6px;
-        background: touch.pressed ? Handheld.pill.darker(25%) : Handheld.pill;
+        background: Handheld.pill.mix(#000000, 0.5);
         transform-rotation: -25deg;
+    }
+    // Face
+    Rectangle {
+        y: root.sink;
+        height: 12px;
+        border-radius: 6px;
+        background: touch.has-hover && !root.down ? Handheld.pill.brighter(10%) : Handheld.pill;
+        transform-rotation: -25deg;
+
+        Rectangle {
+            border-radius: 6px;
+            background: root.down
+                ? @linear-gradient(180deg, #00000038 0%, #FFFFFF10 100%)
+                : @linear-gradient(180deg, #FFFFFF38 0%, #00000020 100%);
+        }
     }
 
     Text {
-        y: 16px;
+        y: 20px;
         text: root.caption;
         color: Handheld.brand;
         font-size: 9px;
@@ -124,6 +505,8 @@ component PillButton inherits Rectangle {
 
 component RubberKey inherits Rectangle {
     in property <string> label;
+    // Held from outside (keyboard)
+    in property <bool> held;
     callback clicked <=> touch.clicked;
 
     horizontal-stretch: 1;
@@ -132,19 +515,43 @@ component RubberKey inherits Rectangle {
     min-width: 10px;
     preferred-width: 10px;
 
-    border-radius: 8px;
-    background: touch.pressed ? Handheld.rubber.darker(15%) : (touch.has-hover ? Handheld.rubber.brighter(8%) : Handheld.rubber);
-    drop-shadow-offset-y: touch.pressed ? 0px : 2px;
-    drop-shadow-color: #00000055;
+    property <bool> down: touch.pressed || root.held;
+    property <length> depth: 4px;
+    property <length> sink: down ? 3px : 0px;
+    animate sink { duration: root.down ? 45ms : 190ms; easing: root.down ? ease-out : ease-out-back; }
 
-    Text {
-        text: root.label;
-        color: Handheld.rubber-ink;
-        font-family: "monospace";
-        font-size: 17px;
-        font-weight: 800;
-        horizontal-alignment: center;
-        vertical-alignment: center;
+    // Key body (side wall)
+    Rectangle {
+        y: root.depth;
+        height: parent.height - root.depth;
+        border-radius: 8px;
+        background: Handheld.rubber.mix(#000000, 0.6);
+        drop-shadow-blur: 5px - root.sink;
+        drop-shadow-offset-y: 2px - root.sink / 2;
+        drop-shadow-color: #00000050;
+    }
+    // Face
+    Rectangle {
+        y: root.sink;
+        height: parent.height - root.depth;
+        border-radius: 8px;
+        background: touch.has-hover && !root.down ? Handheld.rubber.brighter(8%) : Handheld.rubber;
+
+        Rectangle {
+            border-radius: 8px;
+            background: root.down
+                ? @linear-gradient(180deg, #00000024 0%, #FFFFFF0C 100%)
+                : @linear-gradient(180deg, #FFFFFF30 0%, #00000012 100%);
+        }
+        Text {
+            text: root.label;
+            color: Handheld.rubber-ink;
+            font-family: "monospace";
+            font-size: root.down ? 16px : 17px;
+            font-weight: 800;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
     }
 
     touch := TouchArea {
@@ -172,9 +579,79 @@ export component AppWindow inherits Window {
     callback toggle-angle-unit();
     callback open-skin-dialog();
 
+    // Key currently held on the keyboard, so the matching button presses too
+    // Buttons held on the keyboard, one bit per button (see key-slot), so
+    // several keys can be held at once.
+    property <int> held-mask: 0;
+
+    // Which on-screen button a key presses; -1 = none
+    pure function key-slot(k: string) -> int {
+        if (k == "0") { return 0; }
+        if (k == "1") { return 1; }
+        if (k == "2") { return 2; }
+        if (k == "3") { return 3; }
+        if (k == "4") { return 4; }
+        if (k == "5") { return 5; }
+        if (k == "6") { return 6; }
+        if (k == "7") { return 7; }
+        if (k == "8") { return 8; }
+        if (k == "9") { return 9; }
+        if (k == ".") { return 10; }
+        if (k == "^") { return 11; }
+        if (k == "%") { return 12; }
+        if (k == "+") { return 13; }
+        if (k == "-") { return 14; }
+        if (k == "*") { return 15; }
+        if (k == "/") { return 16; }
+        if (k == "=" || k == Key.Return) { return 17; }
+        if (k == Key.Escape || k == "c" || k == "C") { return 18; }
+        if (k == "(" || k == ")") { return 19; }
+        if (k == Key.Backspace) { return 20; }
+        return -1;
+    }
+    // The other character on the same physical key (US layout). If Shift is
+    // let go first, the release reports the unshifted character, so both are
+    // cleared to keep a shifted key from sticking.
+    pure function key-partner(k: string) -> string {
+        if (k == "=") { return "+"; }
+        if (k == "+") { return "="; }
+        if (k == "8") { return "*"; }
+        if (k == "*") { return "8"; }
+        if (k == "9") { return "("; }
+        if (k == "(") { return "9"; }
+        if (k == "0") { return ")"; }
+        if (k == ")") { return "0"; }
+        if (k == "6") { return "^"; }
+        if (k == "^") { return "6"; }
+        if (k == "5") { return "%"; }
+        if (k == "%") { return "5"; }
+        return "";
+    }
+    pure function slot-held(slot: int) -> bool {
+        return Math.mod(Math.floor(root.held-mask / Math.pow(2, slot)), 2) == 1;
+    }
+    function set-held(k: string, on: bool) {
+        if (root.key-slot(k) < 0) { return; }
+        if (root.slot-held(root.key-slot(k)) != on) {
+            root.held-mask += (on ? 1 : -1) * Math.pow(2, root.key-slot(k));
+        }
+    }
+    // D-pad direction held via the keyboard (see DPad direction codes)
+    property <int> pad-key-dir: slot-held(13) ? 1 : (slot-held(14) ? 2 : (slot-held(15) ? 3 : (slot-held(16) ? 4 : 0)));
+
     forward-focus: key-handler;
     key-handler := FocusScope {
+        key-released(event) => {
+            root.set-held(event.text, false);
+            root.set-held(root.key-partner(event.text), false);
+            return reject;
+        }
+        // Switching away mid-press never delivers the key release
+        focus-lost => {
+            root.held-mask = 0;
+        }
         key-pressed(event) => {
+            root.set-held(event.text, true);
             if (event.text == "0" || event.text == "1" || event.text == "2" ||
                 event.text == "3" || event.text == "4" || event.text == "5" ||
                 event.text == "6" || event.text == "7" || event.text == "8" ||
@@ -239,15 +716,27 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Screen bezel
+    // Screen bezel: a separate moulded piece standing slightly proud of the
+    // shell, lit from above
     Rectangle {
         x: 22px;
         y: 40px;
         width: root.width - 44px;
         height: 214px;
-        background: Handheld.bezel;
+        background: @linear-gradient(180deg, Handheld.bezel.mix(#FFFFFF, 0.88) 0%, Handheld.bezel 35%, Handheld.bezel.mix(#000000, 0.82) 100%);
         border-radius: 10px;
         border-bottom-right-radius: 44px;
+        drop-shadow-blur: 5px;
+        drop-shadow-offset-y: 2px;
+        drop-shadow-color: #00000045;
+
+        // Edge highlight where the moulding catches the light
+        Rectangle {
+            border-radius: 10px;
+            border-bottom-right-radius: 44px;
+            border-width: 1px;
+            border-color: #FFFFFF1E;
+        }
 
         // Power LED
         Rectangle {
@@ -266,6 +755,24 @@ export component AppWindow inherits Window {
             text: "POWER";
             color: Handheld.bezel-label;
             font-size: 7px;
+        }
+
+        // Sunken window the LCD sits in: dark lip, lit along its bottom edge
+        Rectangle {
+            x: 41px;
+            y: 15px;
+            width: parent.width - 82px;
+            height: 166px;
+            border-radius: 3px;
+            background: @linear-gradient(180deg, Handheld.bezel.mix(#000000, 0.45) 0%, Handheld.bezel.mix(#000000, 0.7) 100%);
+
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                x: 2px;
+                width: parent.width - 4px;
+                background: #FFFFFF26;
+            }
         }
 
         // Dot-matrix LCD
@@ -291,6 +798,18 @@ export component AppWindow inherits Window {
                 width: parent.width;
                 height: 1px;
                 background: Handheld.lcd-grid;
+            }
+
+            // Inner shadow cast by the window lip (top and left)
+            Rectangle {
+                y: 0;
+                height: 16px;
+                background: @linear-gradient(180deg, #00000040 0%, #00000000 100%);
+            }
+            Rectangle {
+                x: 0;
+                width: 10px;
+                background: @linear-gradient(90deg, #00000028 0%, #00000000 100%);
             }
 
             VerticalLayout {
@@ -327,6 +846,16 @@ export component AppWindow inherits Window {
                     horizontal-alignment: right;
                 }
             }
+
+            // Glass: a soft diagonal glare across the top-left
+            Rectangle {
+                x: -30px;
+                y: -110px;
+                width: 90px;
+                height: 300px;
+                transform-rotation: 35deg;
+                background: @linear-gradient(90deg, #FFFFFF00 0%, #FFFFFF1C 45%, #FFFFFF08 70%, #FFFFFF00 100%);
+            }
         }
 
         Text {
@@ -352,32 +881,18 @@ export component AppWindow inherits Window {
     }
 
     // D-pad: up +, down −, left ×, right ÷
-    Rectangle {
+    DPad {
         x: 26px;
         y: 304px;
-        width: 120px;
-        height: 120px;
-
-        PadArm { x: 40px; y: 0px; width: 40px; height: 44px; label: "+"; clicked => { root.press-key("+"); } }
-        PadArm { x: 40px; y: 76px; width: 40px; height: 44px; label: "−"; clicked => { root.press-key("−"); } }
-        PadArm { x: 0px; y: 40px; width: 44px; height: 40px; label: "×"; clicked => { root.press-key("×"); } }
-        PadArm { x: 76px; y: 40px; width: 44px; height: 40px; label: "÷"; clicked => { root.press-key("÷"); } }
-        // Centre hub
-        Rectangle {
-            x: 40px;
-            y: 40px;
-            width: 40px;
-            height: 40px;
-            background: Handheld.pad;
-            Rectangle {
-                x: 12px;
-                y: 12px;
-                width: 16px;
-                height: 16px;
-                border-radius: 8px;
-                background: Handheld.pad.darker(30%);
-            }
-        }
+        up-label: "+";
+        down-label: "−";
+        left-label: "×";
+        right-label: "÷";
+        held-dir: root.pad-key-dir;
+        up-clicked => { root.press-key("+"); }
+        down-clicked => { root.press-key("−"); }
+        left-clicked => { root.press-key("×"); }
+        right-clicked => { root.press-key("÷"); }
     }
 
     // A / B buttons
@@ -386,6 +901,7 @@ export component AppWindow inherits Window {
         y: 310px;
         label: "=";
         caption: "A";
+        held: root.slot-held(17);
         clicked => { root.press-key("="); }
     }
     RoundButton {
@@ -393,6 +909,7 @@ export component AppWindow inherits Window {
         y: 344px;
         label: "C";
         caption: "B";
+        held: root.slot-held(18);
         clicked => { root.press-key("AC"); }
     }
 
@@ -401,12 +918,14 @@ export component AppWindow inherits Window {
         x: 120px;
         y: 444px;
         caption: "( )";
+        held: root.slot-held(19);
         clicked => { root.press-key("()"); }
     }
     PillButton {
         x: 190px;
         y: 444px;
         caption: "DEL";
+        held: root.slot-held(20);
         clicked => { root.press-key("BACKSPACE"); }
     }
 
@@ -420,45 +939,57 @@ export component AppWindow inherits Window {
 
         HorizontalLayout {
             spacing: 8px;
-            RubberKey { label: "7"; clicked => { root.press-key("7"); } }
-            RubberKey { label: "8"; clicked => { root.press-key("8"); } }
-            RubberKey { label: "9"; clicked => { root.press-key("9"); } }
+            RubberKey { label: "7"; held: root.slot-held(7); clicked => { root.press-key("7"); } }
+            RubberKey { label: "8"; held: root.slot-held(8); clicked => { root.press-key("8"); } }
+            RubberKey { label: "9"; held: root.slot-held(9); clicked => { root.press-key("9"); } }
             RubberKey { label: "√"; clicked => { root.press-key("√("); } }
-            RubberKey { label: "^"; clicked => { root.press-key("^"); } }
+            RubberKey { label: "^"; held: root.slot-held(11); clicked => { root.press-key("^"); } }
         }
         HorizontalLayout {
             spacing: 8px;
-            RubberKey { label: "4"; clicked => { root.press-key("4"); } }
-            RubberKey { label: "5"; clicked => { root.press-key("5"); } }
-            RubberKey { label: "6"; clicked => { root.press-key("6"); } }
+            RubberKey { label: "4"; held: root.slot-held(4); clicked => { root.press-key("4"); } }
+            RubberKey { label: "5"; held: root.slot-held(5); clicked => { root.press-key("5"); } }
+            RubberKey { label: "6"; held: root.slot-held(6); clicked => { root.press-key("6"); } }
             RubberKey { label: "sin"; clicked => { root.press-key("sin("); } }
             RubberKey { label: "π"; clicked => { root.press-key("π"); } }
         }
         HorizontalLayout {
             spacing: 8px;
-            RubberKey { label: "1"; clicked => { root.press-key("1"); } }
-            RubberKey { label: "2"; clicked => { root.press-key("2"); } }
-            RubberKey { label: "3"; clicked => { root.press-key("3"); } }
+            RubberKey { label: "1"; held: root.slot-held(1); clicked => { root.press-key("1"); } }
+            RubberKey { label: "2"; held: root.slot-held(2); clicked => { root.press-key("2"); } }
+            RubberKey { label: "3"; held: root.slot-held(3); clicked => { root.press-key("3"); } }
             RubberKey { label: "cos"; clicked => { root.press-key("cos("); } }
-            RubberKey { label: "%"; clicked => { root.press-key("%"); } }
+            RubberKey { label: "%"; held: root.slot-held(12); clicked => { root.press-key("%"); } }
         }
         HorizontalLayout {
             spacing: 8px;
-            RubberKey { label: "0"; horizontal-stretch: 2; clicked => { root.press-key("0"); } }
-            RubberKey { label: "."; clicked => { root.press-key("."); } }
+            RubberKey { label: "0"; held: root.slot-held(0); horizontal-stretch: 2; clicked => { root.press-key("0"); } }
+            RubberKey { label: "."; held: root.slot-held(10); clicked => { root.press-key("."); } }
             RubberKey { label: "tan"; clicked => { root.press-key("tan("); } }
             RubberKey { label: "ln"; clicked => { root.press-key("ln("); } }
         }
     }
 
-    // Speaker grille
+    // Speaker grille: slots cut into the shell. Light from above leaves the
+    // top of each slot in shadow and catches the shell lip below it.
     for i in 6: Rectangle {
         x: root.width - 96px + i * 12px;
         y: 440px;
-        width: 5px;
+        width: 6px;
         height: 40px;
-        border-radius: 2.5px;
-        background: Handheld.seam;
-        transform-rotation: -25deg;
+
+        // Lit lip below the cut
+        Rectangle {
+            y: 1.5px;
+            border-radius: 3px;
+            background: Handheld.shell-top.mix(#FFFFFF, 0.45);
+            transform-rotation: -25deg;
+        }
+        // The slot itself
+        Rectangle {
+            border-radius: 3px;
+            background: @linear-gradient(180deg, Handheld.seam.mix(#000000, 0.6) 0%, Handheld.seam.mix(#000000, 0.85) 100%);
+            transform-rotation: -25deg;
+        }
     }
 }
