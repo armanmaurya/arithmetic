@@ -1,0 +1,116 @@
+// The case: body, printed logos, solar panel, the frame around the LCD and
+// two small window controls. The window itself rounds the corners.
+
+import { Geo } from "layout.slint";
+
+export component Case inherits Rectangle {
+    callback open-skin-dialog();
+    callback close-window();
+
+    property <length> lcd-right: Geo.lcd-x + Geo.lcd-w;
+
+    width: Geo.width;
+    height: Geo.height;
+    background: @linear-gradient(90deg, #4b4b46 0%, #66665f 3%, #5a5a54 8%, #575752 50%, #5a5a54 92%, #66665f 97%, #4b4b46 100%);
+
+    // Raised front face.
+    Rectangle {
+        x: 7px;
+        y: 6px;
+        width: parent.width - 14px;
+        height: parent.height - 13px;
+        background: @linear-gradient(180deg, #5c5c56 0%, #575752 40%, #53534e 100%);
+        border-width: 1px;
+        border-color: #6c6c65;
+    }
+
+    WindowMoveArea {
+        width: Geo.width - 64px;
+        height: Geo.lcd-y - Geo.frame;
+    }
+
+    // Logos, aligned to the left edge of the LCD.
+    Text {
+        x: Geo.lcd-x + 11px;
+        y: 31px;
+        text: "CASIO";
+        color: #c6c7c1;
+        font-size: 22px;
+        font-weight: 900;
+        font-family: "DejaVu Sans";
+        letter-spacing: 1px;
+    }
+    Text {
+        x: Geo.lcd-x + 15px;
+        y: 69px;
+        text: "fx-991MS";
+        color: #d2d3cd;
+        font-size: 12.5px;
+        font-family: "DejaVu Sans";
+    }
+    Text {
+        x: Geo.lcd-x;
+        y: 89px;
+        text: "S-V.P.A.M.";
+        color: #d2d3cd;
+        font-size: 16px;
+        font-weight: 800;
+        font-family: "DejaVu Sans";
+        letter-spacing: 2px;
+    }
+
+    // Solar panel and "2nd edition", aligned to the right edge of the LCD.
+    Rectangle {
+        x: root.lcd-right - 13px - self.width;
+        y: 34px;
+        width: 171px;
+        height: 62px;
+        border-radius: 2px;
+        background: @linear-gradient(170deg, #3a2c2a 0%, #2c2221 55%, #352827 100%);
+        border-width: 2px;
+        border-color: #3f3f3b;
+    }
+    Text {
+        x: root.lcd-right - 5px - self.width;
+        y: 113px;
+        text: "2nd edition";
+        color: #e4e4de;
+        font-size: 10.5px;
+        font-family: "DejaVu Sans";
+    }
+
+    // Dark frame around the LCD glass.
+    Rectangle {
+        x: Geo.lcd-x - Geo.frame;
+        y: Geo.lcd-y - Geo.frame;
+        width: Geo.lcd-w + 2 * Geo.frame;
+        height: Geo.lcd-h + 2 * Geo.frame;
+        border-radius: 5px;
+        background: #34342f;
+        border-width: 1px;
+        border-color: #6a6a63;
+    }
+
+    // Skin picker and close, small in the top-right corner.
+    HorizontalLayout {
+        x: Geo.width - 50px;
+        y: 12px;
+        spacing: 4px;
+        Rectangle {
+            width: 14px;
+            height: 14px;
+            border-radius: 7px;
+            background: skin-touch.has-hover ? #ffffff40 : #ffffff10;
+            Text { text: "⋯"; color: #c6c7c1; font-size: 9px; horizontal-alignment: center; vertical-alignment: center; }
+            skin-touch := TouchArea { mouse-cursor: pointer; clicked => { root.open-skin-dialog(); } }
+        }
+        Rectangle {
+            width: 14px;
+            height: 14px;
+            border-radius: 7px;
+            background: close-touch.has-hover ? #de5465 : #ffffff10;
+            Text { text: "✕"; color: #c6c7c1; font-size: 8px; horizontal-alignment: center; vertical-alignment: center; }
+            close-touch := TouchArea { mouse-cursor: pointer; clicked => { root.close-window(); } }
+        }
+    }
+}

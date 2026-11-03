@@ -1,0 +1,202 @@
+// The key parts: a grey pillow key with its printed legends, the larger
+// number key, the round metal SHIFT / ALPHA / MODE / ON domes and the arms
+// of the replay pad. Positions come from Geo (layout.slint).
+
+import { Geo } from "layout.slint";
+
+// Legend colours printed on the case.
+export global Ink {
+    out property <color> yellow: #d6c252;   // SHIFT functions
+    out property <color> red: #de5465;      // ALPHA: variables, : and e
+    out property <color> green: #8cbd5e;    // unused on the fx-82MS
+    out property <color> blue: #7896ee;     // SD / REG
+    out property <color> label: #ecebe4;    // text on the keys
+    out property <length> legend-size: 9.5px;
+    out property <length> legend-gap: 3px;   // between a legend and its key
+}
+
+component Legend inherits Text {
+    font-size: Ink.legend-size;
+    font-family: "DejaVu Sans";
+    vertical-alignment: center;
+}
+
+// A key and the legends printed around it:
+// - above: SHIFT (yellow), then green, then ALPHA (red) or a second SHIFT
+//   legend. On function keys they form one group centred over the key; on
+//   the wider number keys the first sits at the left edge and the last at
+//   the right edge, as on the real case.
+// - below: the mode legend (blue).
+export component CKey inherits Rectangle {
+    in property <length> cx;
+    in property <length> cy;
+    in property <length> kw: Geo.fn-w;
+    in property <length> kh: Geo.fn-h;
+    in property <length> radius: 7px;
+    in property <string> label;
+    in property <length> label-size: 15px;
+    in property <bool> serif;
+    in property <color> label-color: Ink.label;
+    in property <string> shift-l;
+    in property <string> green-l;
+    in property <string> alpha-l;
+    in property <string> shift-r;
+    in property <string> blue-l;
+    in property <bool> spread;
+    callback clicked;
+
+    x: cx - kw / 2;
+    y: cy - kh / 2;
+    width: kw;
+    height: kh;
+
+    property <string> right-l: alpha-l != "" ? alpha-l : shift-r;
+    property <color> right-color: alpha-l != "" ? Ink.red : Ink.yellow;
+    property <length> legend-y: -Ink.legend-gap - 10px;
+
+    if !root.spread: HorizontalLayout {
+        x: (root.kw - self.preferred-width) / 2;
+        y: root.legend-y;
+        height: 10px;
+        spacing: 4px;
+        if root.shift-l != "": Legend { text: root.shift-l; color: Ink.yellow; }
+        if root.green-l != "": Legend { text: root.green-l; color: Ink.green; }
+        if root.right-l != "": Legend { text: root.right-l; color: root.right-color; }
+    }
+    // Number keys: left legend at the left edge (centred when it is alone),
+    // right legend at the right edge.
+    if root.spread && (root.shift-l != "" || root.green-l != ""): Legend {
+        x: root.right-l == "" ? (root.kw - self.width) / 2 : 1px;
+        y: root.legend-y;
+        height: 10px;
+        text: root.shift-l != "" ? root.shift-l : root.green-l;
+        color: root.shift-l != "" ? Ink.yellow : Ink.green;
+    }
+    if root.spread && root.right-l != "": Legend {
+        x: root.kw - self.width - 1px;
+        y: root.legend-y;
+        height: 10px;
+        text: root.right-l;
+        color: root.right-color;
+    }
+    if root.blue-l != "": Legend {
+        x: (root.kw - self.width) / 2;
+        y: root.kh + Ink.legend-gap;
+        height: 10px;
+        text: root.blue-l;
+        color: Ink.blue;
+        font-size: Ink.legend-size - 0.5px;
+    }
+
+    // Shadow under the key, then the cap.
+    Rectangle {
+        y: 2px;
+        height: parent.height + 1px;
+        border-radius: root.radius;
+        background: #2b2b28;
+    }
+    Rectangle {
+        y: touch.pressed ? 1.5px : 0px;
+        height: parent.height;
+        border-radius: root.radius;
+        background: @linear-gradient(180deg, #6e6d67 0%, #63625d 35%, #575651 100%);
+        border-width: 1px;
+        border-color: #3d3c38;
+
+        // Inner highlight of the pillow edge.
+        Rectangle {
+            x: 2px;
+            y: 1px;
+            width: parent.width - 4px;
+            height: parent.height - 3px;
+            border-radius: root.radius - 1px;
+            border-width: 1px;
+            border-color: touch.has-hover ? #ffffff38 : #ffffff1e;
+        }
+        Text {
+            text: root.label;
+            color: root.label-color;
+            font-size: root.label-size;
+            font-family: root.serif ? "DejaVu Serif" : "DejaVu Sans";
+            font-italic: root.serif;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        animate y { duration: 40ms; }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component NumKey inherits CKey {
+    kw: Geo.num-w;
+    kh: Geo.num-h;
+    radius: 9px;
+    label-size: 29px;
+    spread: true;
+}
+
+// SHIFT, ALPHA, MODE, ON: small metal domes with their names above.
+export component RoundKey inherits Rectangle {
+    in property <length> cx;
+    in property <length> cy;
+    in property <string> legend;
+    in property <color> legend-color: #d8d7d0;
+    in property <string> legend-2;
+    callback clicked;
+
+    x: cx - 17px;
+    y: cy - 17px;
+    width: 34px;
+    height: 34px;
+
+    HorizontalLayout {
+        x: (34px - self.preferred-width) / 2;
+        y: -Ink.legend-gap - 12px;
+        height: 10px;
+        spacing: 4px;
+        Legend { text: root.legend; color: root.legend-color; }
+        if root.legend-2 != "": Legend { text: root.legend-2; color: Ink.yellow; }
+    }
+    Rectangle {
+        y: 2px;
+        border-radius: 17px;
+        background: #2a2a27;
+    }
+    Rectangle {
+        y: touch.pressed ? 1.5px : 0px;
+        border-radius: 17px;
+        background: @radial-gradient(circle, #b9b8b2 0%, #9a9993 45%, #74736d 85%, #5a5954 100%);
+        border-width: 1px;
+        border-color: #3a3a36;
+        animate y { duration: 40ms; }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// One arm of the replay pad.
+export component PadKey inherits Rectangle {
+    callback clicked;
+    Rectangle {
+        y: 2px;
+        border-radius: 7px;
+        background: #2a2a27;
+    }
+    Rectangle {
+        y: touch.pressed ? 1.5px : 0px;
+        border-radius: 7px;
+        background: @radial-gradient(circle, #c2c1bb 0%, #a6a59f 50%, #7f7e78 100%);
+        border-width: 1px;
+        border-color: #44433f;
+        animate y { duration: 40ms; }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}

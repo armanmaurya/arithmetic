@@ -1,0 +1,94 @@
+// Where every key sits, and what it is called. Pressing one reports its id
+// (e.g. "SIN", "7", "SHIFT"); what the id does is up to skin.slint.
+
+import { Geo } from "layout.slint";
+import { Ink, CKey, NumKey, RoundKey, PadKey } from "keys.slint";
+
+export component Keypad inherits Rectangle {
+    callback key(string);
+
+    // ── Top row: SHIFT ALPHA · replay pad · MODE ON ──
+
+    RoundKey { cx: Geo.f1; cy: Geo.row-top; legend: "SHIFT"; legend-color: Ink.yellow; clicked => { root.key("SHIFT"); } }
+    RoundKey { cx: Geo.f2; cy: Geo.row-top; legend: "ALPHA"; legend-color: Ink.red; clicked => { root.key("ALPHA"); } }
+    RoundKey { cx: Geo.f5; cy: Geo.row-top; legend: "MODE"; legend-2: "CLR"; clicked => { root.key("MODE"); } }
+    RoundKey { cx: Geo.f6; cy: Geo.row-top; legend: "ON"; clicked => { root.key("ON"); } }
+
+    // Replay pad: four metal arms on a dark disc.
+    Text {
+        x: Geo.center - self.width / 2;
+        y: Geo.pad-y - 58px - Ink.legend-gap - 11px;
+        text: "COPY";
+        color: Ink.yellow;
+        font-size: Ink.legend-size;
+        font-family: "DejaVu Sans";
+    }
+    Rectangle {
+        x: Geo.center - 64px;
+        y: Geo.pad-y - 58px;
+        width: 128px;
+        height: 116px;
+        border-radius: 58px;
+        background: @radial-gradient(circle, #4d4d48 0%, #454540 60%, #3b3b37 100%);
+        border-width: 1px;
+        border-color: #696962;
+    }
+    PadKey { x: Geo.center - 16px; y: Geo.pad-y - 49px; width: 32px; height: 42px; clicked => { root.key("UP"); } }
+    PadKey { x: Geo.center - 16px; y: Geo.pad-y + 7px; width: 32px; height: 42px; clicked => { root.key("DOWN"); } }
+    PadKey { x: Geo.center - 64px; y: Geo.pad-y - 15px; width: 44px; height: 30px; clicked => { root.key("LEFT"); } }
+    PadKey { x: Geo.center + 20px; y: Geo.pad-y - 15px; width: 44px; height: 30px; clicked => { root.key("RIGHT"); } }
+
+    // ── Function keys ──
+
+    CKey { cx: Geo.f1; cy: Geo.row-a; label: "CALC"; label-size: 14px; shift-l: "SOLVE"; alpha-l: "="; clicked => { root.key("CALC"); } }
+    CKey { cx: Geo.f2; cy: Geo.row-a; label: "∫dx"; serif: true; label-size: 17px; shift-l: "d/dx"; alpha-l: ":"; clicked => { root.key("INT"); } }
+    CKey { cx: Geo.f5; cy: Geo.row-a; label: "x⁻¹"; serif: true; label-size: 18px; shift-l: "x!"; green-l: "LOGIC"; clicked => { root.key("INV"); } }
+    CKey { cx: Geo.f6; cy: Geo.row-a; label: "x³"; serif: true; label-size: 18px; shift-l: "∛"; clicked => { root.key("CUBE"); } }
+
+    CKey { cx: Geo.f1; cy: Geo.row-b; label: "a b/c"; label-size: 14px; shift-l: "d/c"; clicked => { root.key("FRAC"); } }
+    CKey { cx: Geo.f2; cy: Geo.row-b; label: "√‾"; label-size: 17px; clicked => { root.key("SQRT"); } }
+    CKey { cx: Geo.f3; cy: Geo.row-b; label: "x²"; serif: true; label-size: 18px; green-l: "DEC"; clicked => { root.key("SQ"); } }
+    CKey { cx: Geo.f4; cy: Geo.row-b; label: "∧"; label-size: 18px; shift-l: "ˣ√"; green-l: "HEX"; clicked => { root.key("POW"); } }
+    CKey { cx: Geo.f5; cy: Geo.row-b; label: "log"; label-size: 17px; shift-l: "10ˣ"; green-l: "BIN"; clicked => { root.key("LOG"); } }
+    CKey { cx: Geo.f6; cy: Geo.row-b; label: "ln"; label-size: 17px; shift-l: "eˣ"; green-l: "OCT"; alpha-l: "e"; clicked => { root.key("LN"); } }
+
+    CKey { cx: Geo.f1; cy: Geo.row-c; label: "(−)"; label-size: 15.5px; shift-l: "∠"; alpha-l: "A"; clicked => { root.key("NEG"); } }
+    CKey { cx: Geo.f2; cy: Geo.row-c; label: "°′″"; label-size: 17px; shift-l: "←"; alpha-l: "B"; clicked => { root.key("DMS"); } }
+    CKey { cx: Geo.f3; cy: Geo.row-c; label: "hyp"; label-size: 17px; alpha-l: "C"; clicked => { root.key("HYP"); } }
+    CKey { cx: Geo.f4; cy: Geo.row-c; label: "sin"; label-size: 17px; shift-l: "sin⁻¹"; alpha-l: "D"; clicked => { root.key("SIN"); } }
+    CKey { cx: Geo.f5; cy: Geo.row-c; label: "cos"; label-size: 17px; shift-l: "cos⁻¹"; alpha-l: "E"; clicked => { root.key("COS"); } }
+    CKey { cx: Geo.f6; cy: Geo.row-c; label: "tan"; label-size: 17px; shift-l: "tan⁻¹"; alpha-l: "F"; clicked => { root.key("TAN"); } }
+
+    CKey { cx: Geo.f1; cy: Geo.row-d; label: "RCL"; label-size: 15.5px; shift-l: "STO"; clicked => { root.key("RCL"); } }
+    CKey { cx: Geo.f2; cy: Geo.row-d; label: "ENG"; label-size: 15.5px; shift-l: "←"; blue-l: "i"; clicked => { root.key("ENG"); } }
+    CKey { cx: Geo.f3; cy: Geo.row-d; label: "("; label-size: 18px; blue-l: "arg"; clicked => { root.key("LP"); } }
+    CKey { cx: Geo.f4; cy: Geo.row-d; label: ")"; label-size: 18px; alpha-l: "X"; blue-l: "Abs"; clicked => { root.key("RP"); } }
+    CKey { cx: Geo.f5; cy: Geo.row-d; label: ","; label-size: 19.5px; shift-l: ";"; alpha-l: "Y"; blue-l: "Conjg"; clicked => { root.key("COMMA"); } }
+    CKey { cx: Geo.f6; cy: Geo.row-d; label: "M+"; label-size: 15.5px; shift-l: "M−"; alpha-l: "M"; blue-l: "DT   CL"; clicked => { root.key("MPLUS"); } }
+
+    // ── Number keys ──
+
+    NumKey { cx: Geo.n1; cy: Geo.row-1; label: "7"; shift-r: "M"; clicked => { root.key("7"); } }
+    NumKey { cx: Geo.n2; cy: Geo.row-1; label: "8"; shift-r: "G"; clicked => { root.key("8"); } }
+    NumKey { cx: Geo.n3; cy: Geo.row-1; label: "9"; shift-r: "T"; clicked => { root.key("9"); } }
+    NumKey { cx: Geo.n4; cy: Geo.row-1; label: "DEL"; label-size: 19px; label-color: #c8344d; shift-l: "INS"; clicked => { root.key("DEL"); } }
+    NumKey { cx: Geo.n5; cy: Geo.row-1; label: "AC"; label-size: 19px; label-color: #c8344d; shift-l: "OFF"; clicked => { root.key("AC"); } }
+
+    NumKey { cx: Geo.n1; cy: Geo.row-2; label: "4"; shift-r: "μ"; clicked => { root.key("4"); } }
+    NumKey { cx: Geo.n2; cy: Geo.row-2; label: "5"; shift-r: "m"; clicked => { root.key("5"); } }
+    NumKey { cx: Geo.n3; cy: Geo.row-2; label: "6"; shift-r: "k"; clicked => { root.key("6"); } }
+    NumKey { cx: Geo.n4; cy: Geo.row-2; label: "×"; shift-l: "nPr"; clicked => { root.key("MUL"); } }
+    NumKey { cx: Geo.n5; cy: Geo.row-2; label: "÷"; shift-l: "nCr"; clicked => { root.key("DIV"); } }
+
+    NumKey { cx: Geo.n1; cy: Geo.row-3; label: "1"; shift-l: "S-SUM"; shift-r: "f"; clicked => { root.key("1"); } }
+    NumKey { cx: Geo.n2; cy: Geo.row-3; label: "2"; shift-l: "S-VAR"; shift-r: "p"; clicked => { root.key("2"); } }
+    NumKey { cx: Geo.n3; cy: Geo.row-3; label: "3"; shift-l: "DISTR"; shift-r: "n"; clicked => { root.key("3"); } }
+    NumKey { cx: Geo.n4; cy: Geo.row-3; label: "+"; green-l: "▸r∠θ"; shift-r: "Pol("; clicked => { root.key("PLUS"); } }
+    NumKey { cx: Geo.n5; cy: Geo.row-3; label: "−"; green-l: "▸a+bi"; shift-r: "Rec("; clicked => { root.key("MINUS"); } }
+
+    NumKey { cx: Geo.n1; cy: Geo.row-4; label: "0"; shift-l: "Rnd"; clicked => { root.key("0"); } }
+    NumKey { cx: Geo.n2; cy: Geo.row-4; label: "•"; shift-l: "Ran#"; clicked => { root.key("DOT"); } }
+    NumKey { cx: Geo.n3; cy: Geo.row-4; label: "×10ˣ"; label-size: 19px; shift-l: "π"; clicked => { root.key("EXP"); } }
+    NumKey { cx: Geo.n4; cy: Geo.row-4; label: "Ans"; label-size: 19px; shift-l: "DRG▸"; clicked => { root.key("ANS"); } }
+    NumKey { cx: Geo.n5; cy: Geo.row-4; label: "="; green-l: "Re↔Im"; shift-r: "%"; clicked => { root.key("EQ"); } }
+}

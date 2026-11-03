@@ -1,0 +1,306 @@
+// The two-line LCD: a dot-matrix line for the expression and a 7-segment
+// line for the result, with the indicators along the top. It only draws:
+// what to show is decided in skin.slint and passed in.
+
+// One segment of a slanted 7-segment digit, in a 24 × 34 cell.
+component Seg inherits Path {
+    in property <bool> on;
+    in property <color> ink;
+    viewbox-width: 24;
+    viewbox-height: 34;
+    fill: on ? ink : transparent;
+}
+
+// One character of the result line. Digits, A–F, "-", "r", "o" and "H" are
+// drawn with segments; ° ′ ″ as a degree mark; "/" as the fraction mark ⌟.
+// A "." is drawn by the glyph before it, like on the real display.
+component Glyph inherits Rectangle {
+    in property <string> ch;
+    in property <bool> dot;
+    in property <bool> comma;                  // draw the decimal point as a comma
+    in property <color> ink: #1c2317;
+    in property <length> h: 30px;
+
+    property <bool> blank: ch == "." || ch == "";
+    property <bool> deg: ch == "°" || ch == "′" || ch == "″";
+    property <bool> frac: ch == "/";
+    property <bool> seg: ch == "0" || ch == "1" || ch == "2" || ch == "3" || ch == "4" || ch == "5" || ch == "6" || ch == "7" || ch == "8" || ch == "9" || ch == "-" || ch == " " || ch == "A" || ch == "B" || ch == "b" || ch == "C" || ch == "D" || ch == "d" || ch == "E" || ch == "F" || ch == "H" || ch == "r" || ch == "o";
+    property <bool> sa: ch == "0" || ch == "2" || ch == "3" || ch == "5" || ch == "6" || ch == "7" || ch == "8" || ch == "9" || ch == "A" || ch == "C" || ch == "E" || ch == "F";
+    property <bool> sb: ch == "0" || ch == "1" || ch == "2" || ch == "3" || ch == "4" || ch == "7" || ch == "8" || ch == "9" || ch == "A" || ch == "D" || ch == "d" || ch == "H";
+    property <bool> sc: ch == "0" || ch == "1" || ch == "3" || ch == "4" || ch == "5" || ch == "6" || ch == "7" || ch == "8" || ch == "9" || ch == "A" || ch == "B" || ch == "b" || ch == "D" || ch == "d" || ch == "H" || ch == "o";
+    property <bool> sd: ch == "0" || ch == "2" || ch == "3" || ch == "5" || ch == "6" || ch == "8" || ch == "9" || ch == "B" || ch == "b" || ch == "C" || ch == "D" || ch == "d" || ch == "E" || ch == "o";
+    property <bool> se: ch == "0" || ch == "2" || ch == "6" || ch == "8" || ch == "A" || ch == "B" || ch == "b" || ch == "C" || ch == "D" || ch == "d" || ch == "E" || ch == "F" || ch == "H" || ch == "r" || ch == "o";
+    property <bool> sf: ch == "0" || ch == "4" || ch == "5" || ch == "6" || ch == "7" || ch == "8" || ch == "9" || ch == "A" || ch == "B" || ch == "b" || ch == "C" || ch == "E" || ch == "F" || ch == "H";
+    property <bool> sg: ch == "2" || ch == "3" || ch == "4" || ch == "5" || ch == "6" || ch == "8" || ch == "9" || ch == "-" || ch == "A" || ch == "B" || ch == "b" || ch == "D" || ch == "d" || ch == "E" || ch == "F" || ch == "H" || ch == "r" || ch == "o";
+
+    width: blank ? 0px : deg ? h * 0.34 : frac ? h * 0.46 : seg ? h * 0.7 : h * 0.56;
+    height: h;
+    background: transparent;
+
+    if seg: Rectangle {
+        width: root.h * 0.7;
+        height: root.h;
+        Seg { on: root.sa; ink: root.ink; commands: "M 7.92 2.95 L 9.58 1.40 L 18.58 1.40 L 20.02 2.95 L 18.36 4.50 L 9.37 4.50 Z"; }
+        Seg { on: root.sb; ink: root.ink; commands: "M 20.58 3.55 L 22.02 5.10 L 21.34 14.85 L 19.68 16.40 L 18.24 14.85 L 18.92 5.10 Z"; }
+        Seg { on: root.sc; ink: root.ink; commands: "M 19.60 17.60 L 21.04 19.15 L 20.36 28.90 L 18.70 30.45 L 17.26 28.90 L 17.94 19.15 Z"; }
+        Seg { on: root.sd; ink: root.ink; commands: "M 5.96 31.05 L 7.62 29.50 L 16.61 29.50 L 18.06 31.05 L 16.40 32.60 L 7.40 32.60 Z"; }
+        Seg { on: root.se; ink: root.ink; commands: "M 6.30 17.60 L 7.74 19.15 L 7.06 28.90 L 5.40 30.45 L 3.96 28.90 L 4.64 19.15 Z"; }
+        Seg { on: root.sf; ink: root.ink; commands: "M 7.28 3.55 L 8.72 5.10 L 8.04 14.85 L 6.38 16.40 L 4.94 14.85 L 5.62 5.10 Z"; }
+        Seg { on: root.sg; ink: root.ink; commands: "M 6.94 17.00 L 8.60 15.45 L 17.60 15.45 L 19.04 17.00 L 17.38 18.55 L 8.38 18.55 Z"; }
+    }
+
+    if deg: Rectangle {
+        x: root.h * 0.06;
+        y: root.h * 0.02;
+        width: root.h * 0.24;
+        height: root.h * 0.24;
+        border-width: max(1.5px, root.h * 0.07);
+        border-color: root.ink;
+        border-radius: root.h * 0.12;
+    }
+
+    // ⌟ : a short vertical stroke meeting a horizontal one at the bottom.
+    if frac: Rectangle {
+        Rectangle {
+            x: root.h * 0.30;
+            y: root.h * 0.30;
+            width: root.h * 0.09;
+            height: root.h * 0.66;
+            background: root.ink;
+        }
+        Rectangle {
+            x: root.h * 0.06;
+            y: root.h * 0.87;
+            width: root.h * 0.33;
+            height: root.h * 0.09;
+            background: root.ink;
+        }
+    }
+
+    if !seg && !deg && !frac && !blank: Text {
+        text: root.ch;
+        color: root.ink;
+        font-size: root.h * 0.78;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    if dot: Rectangle {
+        x: root.width - root.h * 0.08;
+        y: root.h * 0.86;
+        width: root.h * 0.12;
+        height: root.h * 0.12;
+        background: root.ink;
+    }
+    if dot && comma: Rectangle {
+        x: root.width - root.h * 0.06;
+        y: root.h * 0.98;
+        width: root.h * 0.07;
+        height: root.h * 0.12;
+        background: root.ink;
+    }
+}
+
+// A small annunciator ("S", "M", "STO", …) along the top of the LCD.
+component Sign inherits Text {
+    in property <bool> on;
+    color: on ? #1c2317 : transparent;
+    font-size: 8px;
+    font-weight: 800;
+    font-family: "DejaVu Sans";
+}
+
+// Text in the dot-matrix line's style.
+component Matrix inherits Text {
+    color: #161a1a;
+    font-size: 24px;
+    font-family: "DejaVu Sans Mono";
+    font-weight: 700;
+    letter-spacing: 1px;
+    vertical-alignment: center;
+}
+
+export component Lcd inherits Rectangle {
+    in property <bool> powered: true;
+
+    // Line 1: the editor with a cursor, a menu, or plain text.
+    in property <bool> editing;
+    in property <string> before-cursor;
+    in property <string> after-cursor;
+    in property <string> line1;
+    in property <bool> line1-centered;
+    in property <[string]> menu-items;         // names over 7-segment numbers
+
+    // Line 2: one string per character (see the host's `characters`).
+    in property <[string]> glyphs;
+    in property <[string]> exp-glyphs;         // ×10 exponent, if any
+    in property <string> symbol;               // engineering symbol (k, m, …) instead
+    in property <bool> comma;                  // decimal comma instead of point
+    in property <bool> hide-prefix;            // drop a 0x / 0b / 0o prefix
+    in property <string> base-mark;            // d / H / b / o in BASE mode
+
+    // Indicators.
+    in property <bool> shift;
+    in property <bool> alpha;
+    in property <bool> memory;
+    in property <bool> sto;
+    in property <bool> rcl;
+    in property <string> mode;
+    in property <string> angle;
+    in property <bool> fix;
+    in property <bool> sci;
+    in property <bool> two-parts;              // R↔I: the result has a second part
+    in property <string> part-mark;            // "i" or "∠" while it is shown
+    in property <bool> disp;                   // a multi-statement shows a step
+    in property <bool> eng;                    // engineering symbols are on
+    in property <bool> up;
+    in property <bool> down;
+
+    property <color> ink: #161a1a;
+    property <length> margin: 8px;
+    property <length> digit-h: 36px;
+    property <bool> menu-shown: menu-items.length > 0;
+    property <bool> blink: Math.mod(animation-tick() / 1ms, 1000) < 520;
+
+    border-radius: 2px;
+    background: @linear-gradient(180deg, #c4cecb 0%, #dae4e2 12%, #dde6e4 70%, #d2dcda 100%);
+    clip: true;
+
+    if root.powered: Rectangle {
+        // ── Indicators ──
+        Sign { x: 6px; y: 2px; text: "S"; on: root.shift; }
+        Sign { x: 17px; y: 2px; text: "A"; on: root.alpha; }
+        Sign { x: 29px; y: 2px; text: "M"; on: root.memory; }
+        Sign { x: 42px; y: 2px; text: "STO"; on: root.sto; }
+        Sign { x: 63px; y: 2px; text: "RCL"; on: root.rcl; }
+        Sign { x: 86px; y: 2px; text: "SD"; on: root.mode == "SD"; }
+        Sign { x: 102px; y: 2px; text: "REG"; on: root.mode == "REG"; }
+        Sign { x: 167px; y: 2px; text: "CMPLX"; on: root.mode == "CMPLX"; }
+        Sign { x: 200px; y: 2px; text: "D"; on: root.angle == "deg"; }
+        Sign { x: 211px; y: 2px; text: "R"; on: root.angle == "rad"; }
+        Sign { x: 222px; y: 2px; text: "G"; on: root.angle == "grad"; }
+        Sign { x: 236px; y: 2px; text: "FIX"; on: root.fix; }
+        Sign { x: 256px; y: 2px; text: "SCI"; on: root.sci; }
+        Sign { x: 276px; y: 2px; text: "R↔I"; on: root.two-parts; }
+        Sign { x: 298px; y: 2px; text: root.part-mark == "" ? "i" : root.part-mark; on: root.part-mark != ""; }
+        Sign { x: root.width - root.margin - 5px; y: 16px; text: "▲"; font-size: 8px; on: root.up; }
+        Sign { x: root.width - root.margin - 5px; y: 28px; text: "▼"; font-size: 8px; on: root.down; }
+        Sign { x: root.width - root.margin - 44px; y: 40px; text: "Eng"; on: root.eng; }
+        Sign { x: root.width - root.margin - 20px; y: 40px; text: "Disp"; on: root.disp; }
+
+        // ── Line 1: dot-matrix ──
+        Rectangle {
+            x: root.margin;
+            y: 13px;
+            width: root.width - 2 * root.margin - 8px;
+            height: 30px;
+            clip: true;
+
+            // Editing: text with a blinking cursor, scrolled to keep it in view.
+            if root.editing: HorizontalLayout {
+                x: min(0px, parent.width - before.preferred-width - 16px);
+                alignment: start;
+                before := Matrix { text: root.before-cursor; }
+                Rectangle {
+                    width: 0px;
+                    Rectangle {
+                        y: parent.height - 4px;
+                        width: 14px;
+                        height: 3px;
+                        background: root.blink ? root.ink : transparent;
+                    }
+                }
+                Matrix { text: root.after-cursor; }
+            }
+            if !root.editing && root.menu-shown: HorizontalLayout {
+                for item in root.menu-items: Matrix {
+                    text: item;
+                    font-size: 20px;
+                    horizontal-alignment: center;
+                    horizontal-stretch: 1;
+                }
+            }
+            if !root.editing && !root.menu-shown: Matrix {
+                width: parent.width;
+                text: root.line1;
+                horizontal-alignment: root.line1-centered ? center : left;
+                overflow: clip;
+            }
+        }
+
+        // ── Line 2: 7-segment, sign at the far left ──
+        if root.glyphs.length > 0 && root.glyphs[0] == "-": Glyph {
+            x: 6px;
+            y: 53px;
+            ch: "-";
+            h: root.digit-h;
+            ink: root.ink;
+        }
+        HorizontalLayout {
+            x: 22px;
+            y: 53px;
+            // Room left for the exponent or the base mark on the right.
+            width: root.width - 22px - root.margin - (root.exp-glyphs.length > 0 || root.symbol != "" ? 42px : root.base-mark != "" ? 20px : 0px);
+            height: root.digit-h;
+            alignment: end;
+            spacing: 1px;
+            for g[i] in root.glyphs: Glyph {
+                ch: (i == 0 && g == "-") || (root.hide-prefix && i < 2) ? "" : g;
+                dot: root.glyphs[i + 1] == ".";
+                comma: root.comma;
+                h: root.digit-h;
+                ink: root.ink;
+            }
+        }
+        if root.symbol != "": Matrix {
+            x: root.width - root.margin - 30px;
+            y: 56px;
+            text: root.symbol;
+            font-size: 28px;
+        }
+        if root.exp-glyphs.length > 0: Rectangle {
+            x: root.width - root.margin - 40px;
+            y: 50px;
+            width: 40px;
+            height: 40px;
+            // ×10 sits small under the exponent, as on the real LCD.
+            Text {
+                x: 12px;
+                y: 25px;
+                text: "×10";
+                color: root.ink;
+                font-size: 8px;
+                font-family: "DejaVu Sans";
+            }
+            HorizontalLayout {
+                x: 2px;
+                y: 2px;
+                width: 38px;
+                height: 19px;
+                alignment: end;
+                spacing: 1px;
+                for g in root.exp-glyphs: Glyph { ch: g; h: 19px; ink: root.ink; }
+            }
+        }
+        if root.base-mark != "": Glyph {
+            x: root.width - root.margin - 12px;
+            y: 53px + root.digit-h - 18px;
+            h: 18px;
+            ch: root.base-mark;
+            ink: root.ink;
+        }
+
+        // Menu numbers under the names.
+        if !root.editing && root.menu-shown: HorizontalLayout {
+            x: root.margin;
+            y: 56px;
+            width: root.width - 2 * root.margin - 8px;
+            height: 30px;
+            for item[i] in root.menu-items: Rectangle {
+                horizontal-stretch: 1;
+                Glyph { ch: (i + 1) + ""; h: 28px; ink: root.ink; }
+            }
+        }
+    }
+}

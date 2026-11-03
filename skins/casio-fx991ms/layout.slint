@@ -1,0 +1,51 @@
+// Every position on the calculator, measured from a photo of the real
+// fx-991MS 2nd edition and snapped to a symmetric grid around the centre
+// line. Change a number here and everything that sits on it moves together.
+
+export global Geo {
+    out property <length> width: 394px;
+    out property <length> height: 834px;
+    out property <length> center: 197px;
+
+    // LCD glass, centred, and the dark frame around it.
+    out property <length> lcd-w: 324px;
+    out property <length> lcd-h: 98px;
+    out property <length> lcd-x: center - lcd-w / 2;
+    out property <length> lcd-y: 141px;
+    out property <length> frame: 5px;
+
+    // Function keys: six columns. Number keys: five columns.
+    out property <length> fn-w: 46px;
+    out property <length> fn-h: 27px;
+    out property <length> fn-pitch: 57px;
+    out property <length> num-w: 62px;
+    out property <length> num-h: 40px;
+    out property <length> num-pitch: 68px;
+
+    out property <length> f1: center - 2.5 * fn-pitch;
+    out property <length> f2: center - 1.5 * fn-pitch;
+    out property <length> f3: center - 0.5 * fn-pitch;
+    out property <length> f4: center + 0.5 * fn-pitch;
+    out property <length> f5: center + 1.5 * fn-pitch;
+    out property <length> f6: center + 2.5 * fn-pitch;
+
+    out property <length> n1: center - 2 * num-pitch;
+    out property <length> n2: center - num-pitch;
+    out property <length> n3: center;
+    out property <length> n4: center + num-pitch;
+    out property <length> n5: center + 2 * num-pitch;
+
+    // Row centres, top to bottom.
+    out property <length> row-top: 326px;      // SHIFT ALPHA · MODE ON
+    out property <length> pad-y: 351px;        // replay pad centre
+    out property <length> row-a: 394px;        // CALC ∫dx · x⁻¹ CONST
+    out property <length> fn-row-pitch: 48px;
+    out property <length> row-b: row-a + fn-row-pitch;
+    out property <length> row-c: row-b + fn-row-pitch;
+    out property <length> row-d: row-c + fn-row-pitch;
+    out property <length> row-1: 603px;        // 7 8 9 DEL AC
+    out property <length> num-row-pitch: 60px;
+    out property <length> row-2: row-1 + num-row-pitch;
+    out property <length> row-3: row-2 + num-row-pitch;
+    out property <length> row-4: row-3 + num-row-pitch;
+}

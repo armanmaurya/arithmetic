@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 /// A layout is a separate `.slint` file with its own window size.
@@ -44,6 +45,12 @@ pub struct SkinManifest {
     pub default_color_theme: String,
     #[serde(default)]
     pub color_themes: Vec<SkinColorTheme>,
+    /// Engine settings applied while this skin is active, so a skin can
+    /// behave like the calculator it looks like, e.g.
+    /// `{"implicit-mul-first": "on", "digits": "10"}`. Keys are listed in
+    /// `Settings::KEYS`.
+    #[serde(default)]
+    pub engine: BTreeMap<String, String>,
 }
 
 fn default_version() -> String {

@@ -1,18 +1,23 @@
 {
   "id": "casio-fx991ms",
   "name": "Casio fx-991MS",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "Arithmetic Team",
-  "description": "Photo-real replica of the Casio fx-991MS scientific calculator",
-  "preview": "previews/standard.png",
+  "description": "fx-991MS 2nd edition drawn entirely in Slint: two-line LCD with 7-segment results, SHIFT/ALPHA, all eight modes (COMP, CMPLX, SD, REG, BASE, EQN, MAT, VCT)",
   "default_layout": "standard",
+  "engine": {
+    "digits": "10",
+    "implicit-mul-first": "on",
+    "percent": "of-left",
+    "normal-min": "-2"
+  },
   "layouts": [
     {
       "id": "standard",
       "name": "Standard",
       "file": "skin.slint",
-      "width": 396.0,
-      "height": 784.0
+      "width": 394.0,
+      "height": 834.0
     }
   ]
 }

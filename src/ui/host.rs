@@ -7,7 +7,10 @@
 //! declares the ones it uses.
 
 use crate::core::editor::{KeyAction, apply_key_press, clamp_char_boundary, has_operator_or_func};
-use crate::core::engine::{evaluate_expression, format_number};
+use crate::core::engine::{
+    AngleMode, CalcError, Context, DisplaySettings, Settings, Value as CalcValue,
+    evaluate_expression, format_value, preview_expression,
+};
 use crate::core::paths::app_config_dir;
 use crate::skin::{SkinInfo, compile_skin_layout, discover_skins};
 use crate::storage::{
@@ -28,7 +31,8 @@ struct CalcState {
     preview: String,
     is_error: bool,
     just_evaluated: bool,
-    use_radians: bool,
+    /// Settings, variables, `ans` and memory.
+    ctx: Context,
 }
 
 type SkinCallback = Box<dyn Fn(&App, &[Value])>;
@@ -70,7 +74,27 @@ fn set_opt(inst: &ComponentInstance, name: &str, value: Value) {
     }
 }
 
-fn live_preview(expr: &str, use_radians: bool) -> String {
+fn string_list(items: impl IntoIterator<Item = String>) -> Value {
+    let values: Vec<Value> = items.into_iter().map(|s| Value::String(s.into())).collect();
+    Value::Model(ModelRc::new(VecModel::from(values)))
+}
+
+/// A number in E notation split into mantissa and exponent ("1.5E-07" →
+/// ("1.5", "-07"), "+" dropped). Any other text comes back whole.
+fn split_exponent(text: &str) -> (&str, &str) {
+    if let Some((mantissa, exponent)) = text.rsplit_once('E') {
+        let digits = exponent.strip_prefix(['+', '-']).unwrap_or(exponent);
+        if mantissa.parse::<f64>().is_ok()
+            && !digits.is_empty()
+            && digits.chars().all(|c| c.is_ascii_digit())
+        {
+            return (mantissa, exponent.strip_prefix('+').unwrap_or(exponent));
+        }
+    }
+    (text, "")
+}
+
+fn live_preview(expr: &str, ctx: &Context) -> String {
     if expr.is_empty() || !has_operator_or_func(expr) {
         return String::new();
     }
@@ -79,9 +103,9 @@ fn live_preview(expr: &str, use_radians: bool) -> String {
     {
         return String::new();
     }
-    match evaluate_expression(expr, use_radians) {
+    match preview_expression(expr, ctx) {
         Ok(val) => {
-            let formatted = format_number(val);
+            let formatted = ctx.format(&val);
             if formatted != expr {
                 formatted
             } else {
@@ -401,6 +425,7 @@ impl App {
         let color_theme =
             skin.resolve_color_theme(pick(color_theme_id, &saved.color_theme).as_deref());
 
+        self.apply_engine_settings(skin);
         let definition = compile_skin_layout(skin, &layout)?;
         let instance = definition
             .create()
@@ -520,6 +545,21 @@ impl App {
             Box::new(|app, _| app.toggle_angle_unit()),
         );
         on(
+            "set-setting",
+            Box::new(|app, args| {
+                if let [Value::String(key), Value::String(value), ..] = args {
+                    app.set_setting(key, value);
+                }
+            }),
+        );
+        on(
+            "submit-expression",
+            Box::new(move |app, args| {
+                app.load_expression(arg_string(args));
+                app.press_key("=");
+            }),
+        );
+        on(
             "clear-history",
             Box::new(|app, _| {
                 app.history.clear();
@@ -548,6 +588,61 @@ impl App {
                 }
             }),
         );
+
+        // `evaluate(expression) -> string`: the result as the screen would
+        // show it, and `evaluate-exact(expression) -> string`: full precision
+        // in plain decimal, for feeding back into later calculations. Both
+        // change nothing (no `ans`, no history) and give "" on an error.
+        for (name, exact) in [("evaluate", false), ("evaluate-exact", true)] {
+            let weak: Weak<App> = Rc::downgrade(self);
+            let _ = inst.set_callback(name, move |args| {
+                let (Some(app), Some(Value::String(expr))) = (weak.upgrade(), args.first()) else {
+                    return Value::String(SharedString::default());
+                };
+                // Never panic if a skin calls this while the host is busy.
+                let Ok(st) = app.state.try_borrow() else {
+                    return Value::String(SharedString::default());
+                };
+                let text = match preview_expression(expr, &st.ctx) {
+                    Ok(v) if exact => format_value(
+                        &v,
+                        &DisplaySettings {
+                            significant_digits: 15,
+                            ..DisplaySettings::default()
+                        },
+                    ),
+                    Ok(v) => st.ctx.format(&v),
+                    Err(_) => String::new(),
+                };
+                Value::String(text.into())
+            });
+        }
+
+        // Text helpers, since Slint can't take strings apart:
+        // `characters(text) -> [string]`, one string per character, and
+        // `split-exponent(text) -> [string]`, e.g. "1.5E-07" → ["1.5", "-07"]
+        // and anything else → [text, ""]. `split(text, separator)`, e.g.
+        // "1+1:2+2" by ":" → ["1+1", "2+2"].
+        let _ = inst.set_callback("characters", move |args| {
+            let text = arg_string(args);
+            string_list(text.chars().map(String::from))
+        });
+        let _ = inst.set_callback("split", move |args| {
+            let text = arg_string(args);
+            let sep = match args.get(1) {
+                Some(Value::String(s)) => s.to_string(),
+                _ => String::new(),
+            };
+            if sep.is_empty() {
+                return string_list([text]);
+            }
+            string_list(text.split(sep.as_str()).map(String::from))
+        });
+        let _ = inst.set_callback("split-exponent", move |args| {
+            let text = arg_string(args);
+            let (mantissa, exponent) = split_exponent(&text);
+            string_list([mantissa.to_string(), exponent.to_string()])
+        });
 
         let weak = Rc::downgrade(self);
         let _ = inst.set_callback("switch-skin", move |args| {
@@ -586,6 +681,7 @@ impl App {
             Value::String(st.expression.as_str().into()),
         );
         set_opt(inst, "cursor-byte-offset", Value::Number(st.cursor as f64));
+        Self::push_cursor_split(inst, &st);
         set_opt(
             inst,
             "preview-result",
@@ -593,13 +689,29 @@ impl App {
         );
         set_opt(inst, "is-error", Value::Bool(st.is_error));
         set_opt(inst, "just-evaluated", Value::Bool(st.just_evaluated));
-        set_opt(inst, "use-radians", Value::Bool(st.use_radians));
+        let settings = &st.ctx.settings;
+        set_opt(
+            inst,
+            "use-radians",
+            Value::Bool(settings.angle == AngleMode::Radians),
+        );
+        set_opt(inst, "memory-active", Value::Bool(st.ctx.memory_is_set()));
+        // Every setting as `setting-<key>`, e.g. `setting-angle` = "deg".
+        for (key, _) in Settings::KEYS {
+            if let Some(value) = settings.get(key) {
+                set_opt(
+                    inst,
+                    &format!("setting-{key}"),
+                    Value::String(value.as_str().into()),
+                );
+            }
+        }
         let _ = inst.invoke("set-cursor", &[Value::Number(st.cursor as f64)]);
     }
 
     fn refresh_preview(st: &mut CalcState) {
         st.is_error = false;
-        st.preview = live_preview(&st.expression, st.use_radians);
+        st.preview = live_preview(&st.expression, &st.ctx);
     }
 
     fn press_key(&self, key: &str) {
@@ -617,30 +729,26 @@ impl App {
                         st.just_evaluated = false;
                     }
                     KeyAction::Evaluate => {
-                        if st.expression.is_empty() {
-                            return;
-                        }
-                        match evaluate_expression(&st.expression, st.use_radians) {
-                            Ok(val) => {
-                                let formatted = format_number(val);
-                                if has_operator_or_func(&st.expression) {
-                                    self.history.push(history_value(&st.expression, &formatted));
-                                    append_history_entry(&st.expression, &formatted);
-                                }
-                                st.cursor = formatted.len();
-                                st.expression = formatted;
-                                st.preview.clear();
-                                st.is_error = false;
-                                st.just_evaluated = true;
-                            }
-                            Err(msg) => {
-                                if msg.is_empty() {
-                                    return;
-                                }
-                                st.preview = msg;
+                        self.evaluate(&mut st);
+                    }
+                    action @ (KeyAction::MemoryAdd | KeyAction::MemorySubtract) => {
+                        if let Some(value) = self.evaluate(&mut st) {
+                            let sign = if action == KeyAction::MemoryAdd {
+                                1.0
+                            } else {
+                                -1.0
+                            };
+                            let added = value.as_number().and_then(|x| st.ctx.memory_add(sign * x));
+                            if let Err(err) = added {
+                                st.preview = err.to_string();
                                 st.is_error = true;
                             }
                         }
+                    }
+                    KeyAction::MemoryClear => st.ctx.memory_clear(),
+                    KeyAction::ClearVariables => {
+                        st.ctx.clear_variables();
+                        Self::refresh_preview(&mut st);
                     }
                     KeyAction::UpdateExpression {
                         new_expression,
@@ -671,7 +779,21 @@ impl App {
             );
             set_opt(inst, "is-error", Value::Bool(st.is_error));
             set_opt(inst, "just-evaluated", Value::Bool(false));
+            Self::push_cursor_split(inst, &st);
         });
+    }
+
+    /// The expression split at the cursor, for skins that draw their own
+    /// caret (Slint can't slice strings).
+    fn push_cursor_split(inst: &ComponentInstance, st: &CalcState) {
+        let at = clamp_char_boundary(&st.expression, st.cursor);
+        let (before, after) = st.expression.split_at(at);
+        set_opt(
+            inst,
+            "expression-before-cursor",
+            Value::String(before.into()),
+        );
+        set_opt(inst, "expression-after-cursor", Value::String(after.into()));
     }
 
     fn toggle_angle_unit(&self) {
@@ -679,7 +801,10 @@ impl App {
             self.pull_editor(inst);
             {
                 let mut st = self.state.borrow_mut();
-                st.use_radians = !st.use_radians;
+                st.ctx.settings.angle = match st.ctx.settings.angle {
+                    AngleMode::Degrees => AngleMode::Radians,
+                    _ => AngleMode::Degrees,
+                };
                 Self::refresh_preview(&mut st);
             }
             self.push_state(inst);
@@ -697,5 +822,81 @@ impl App {
             }
             self.push_state(inst);
         });
+    }
+
+    /// Evaluates the expression: on success it is replaced by the result
+    /// (and kept in the history); on failure the error is shown and the
+    /// result is `None`.
+    fn evaluate(&self, st: &mut CalcState) -> Option<CalcValue> {
+        if st.expression.is_empty() {
+            return None;
+        }
+        match evaluate_expression(&st.expression, &mut st.ctx) {
+            Ok(value) => {
+                let formatted = st.ctx.format(&value);
+                if has_operator_or_func(&st.expression) {
+                    self.history.push(history_value(&st.expression, &formatted));
+                    append_history_entry(&st.expression, &formatted);
+                }
+                st.cursor = formatted.len();
+                st.expression = formatted;
+                st.preview.clear();
+                st.is_error = false;
+                st.just_evaluated = true;
+                Some(value)
+            }
+            Err(CalcError::Empty) => None,
+            Err(err) => {
+                st.preview = err.to_string();
+                st.is_error = true;
+                None
+            }
+        }
+    }
+
+    /// The `set-setting(key, value)` callback, e.g. `("notation", "fix:2")`.
+    fn set_setting(&self, key: &str, value: &str) {
+        self.with_instance(|inst| {
+            self.pull_editor(inst);
+            {
+                let mut st = self.state.borrow_mut();
+                if let Err(err) = st.ctx.settings.apply(key, value) {
+                    eprintln!("[engine] {err}");
+                }
+                Self::refresh_preview(&mut st);
+            }
+            self.push_state(inst);
+        });
+    }
+
+    /// Starts from the default settings, keeping the user's angle unit, and
+    /// applies the skin's `engine` settings on top.
+    fn apply_engine_settings(&self, skin: &SkinInfo) {
+        let mut st = self.state.borrow_mut();
+        let angle = st.ctx.settings.angle;
+        st.ctx.settings = Settings {
+            angle,
+            ..Settings::default()
+        };
+        for (key, value) in &skin.manifest.engine {
+            if let Err(err) = st.ctx.settings.apply(key, value) {
+                eprintln!("[skins] '{}': {err}", skin.manifest.id);
+            }
+        }
+        Self::refresh_preview(&mut st);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_exponent;
+
+    #[test]
+    fn splits_only_e_notation_numbers() {
+        assert_eq!(split_exponent("1.5E-07"), ("1.5", "-07"));
+        assert_eq!(split_exponent("-2E+12"), ("-2", "12"));
+        assert_eq!(split_exponent("123.4"), ("123.4", ""));
+        assert_eq!(split_exponent("1E"), ("1E", ""));
+        assert_eq!(split_exponent("3+4i"), ("3+4i", ""));
     }
 }

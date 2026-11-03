@@ -1,0 +1,23 @@
+{
+  "id": "casio-fx82ms",
+  "name": "Casio fx-82MS",
+  "version": "1.0.0",
+  "author": "Arithmetic Team",
+  "description": "fx-82MS 2nd edition drawn entirely in Slint: two-line LCD with 7-segment results, SHIFT/ALPHA, COMP, SD and REG modes",
+  "default_layout": "standard",
+  "engine": {
+    "digits": "10",
+    "implicit-mul-first": "on",
+    "percent": "of-left",
+    "normal-min": "-2"
+  },
+  "layouts": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "file": "skin.slint",
+      "width": 394.0,
+      "height": 834.0
+    }
+  ]
+}

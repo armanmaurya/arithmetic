@@ -1,491 +1,1578 @@
+// Casio fx-991MS (2nd edition), drawn entirely in Slint: no image files.
+//
+// The engine knows nothing about this calculator. Everything model-specific
+// lives in this skin, as plain engine text, settings and drawing:
+//
+//   layout.slint   every position (Geo), on a symmetric grid
+//   case.slint     body, logos, solar panel, LCD frame
+//   lcd.slint      the two-line LCD: dot matrix + 7 segments + indicators
+//   keys.slint     key parts and legend colours
+//   keypad.slint   which key goes where; reports a key id
+//   skin.slint     this file: host contract, calculator state, what keys do
+
+import { Geo } from "layout.slint";
+import { Case } from "case.slint";
+import { Lcd } from "lcd.slint";
+import { Keypad } from "keypad.slint";
+
 export struct HistoryEntry {
     expression: string,
     result: string,
 }
 
-component CasioSpriteButton inherits Rectangle {
-    in property <image> sprite;
-    in property <length> btn-radius: 4px;
-    callback clicked <=> touch.clicked;
-
-    touch := TouchArea {
-        mouse-cursor: pointer;
-    }
-
-    // Physical tactile depression: button translates 2px down when pressed into dark socket well
-    Image {
-        x: 0px;
-        y: touch.pressed ? 2px : 0px;
-        width: parent.width;
-        height: parent.height;
-        source: root.sprite;
-
-        // Shape-matching tactile highlight and press shadow
-        Rectangle {
-            width: 100%;
-            height: 100%;
-            border-radius: root.btn-radius;
-            background: touch.pressed ? #00000035 : (touch.has-hover ? #FFFFFF20 : transparent);
-            animate background { duration: 50ms; }
-        }
-
-        animate y {
-            duration: 60ms;
-            easing: ease-out;
-        }
-    }
-}
-
 export component AppWindow inherits Window {
     title: "Casio fx-991MS";
-    preferred-width: 396px;
-    preferred-height: 784px;
-    min-width: 396px;
-    max-width: 396px;
-    min-height: 784px;
-    max-height: 784px;
+    width: Geo.width;
+    height: Geo.height;
     no-frame: true;
-    background: transparent;
+    background: #575752;
 
+    // Host contract.
     in-out property <string> expression: "";
     in-out property <int> cursor-byte-offset: 0;
     in-out property <string> preview-result: "";
     in-out property <bool> is-error: false;
+    in-out property <bool> just-evaluated: false;
     in-out property <bool> use-radians: false;
+    in-out property <bool> memory-active: false;
+    in-out property <string> expression-before-cursor: "";
+    in-out property <string> expression-after-cursor: "";
+    in-out property <string> setting-angle: "deg";
+    in-out property <string> setting-notation: "normal";
+    in-out property <string> setting-fractions: "off";
+    in-out property <string> setting-complex-form: "rect";
     in-out property <[HistoryEntry]> history: [];
 
-    // Authentic Casio Hardware Shift & Alpha Mode Latches
-    in-out property <bool> shift-active: false;
-    in-out property <bool> alpha-active: false;
-    in-out property <bool> is-powered-on: true;
-
     callback press-key(string);
-    callback expression-edited();
-    callback toggle-angle-unit();
-    callback clear-history();
+    callback set-setting(string, string);
+    callback submit-expression(string);
     callback select-history-item(string);
-    callback switch-skin(string);
     callback open-skin-dialog();
     callback close-window();
+    pure callback evaluate(string) -> string;
+    pure callback evaluate-exact(string) -> string;
+    pure callback characters(string) -> [string];
+    pure callback split-exponent(string) -> [string];
+    pure callback split(string, string) -> [string];
 
-    forward-focus: key-handler;
-    key-handler := FocusScope {
-        key-pressed(event) => {
-            if (event.text == "0" || event.text == "1" || event.text == "2" ||
-                event.text == "3" || event.text == "4" || event.text == "5" ||
-                event.text == "6" || event.text == "7" || event.text == "8" ||
-                event.text == "9" || event.text == ".") {
-                root.press-key(event.text);
-                return accept;
-            }
-            if (event.text == "+") { root.press-key("+"); return accept; }
-            if (event.text == "-") { root.press-key("−"); return accept; }
-            if (event.text == "*") { root.press-key("×"); return accept; }
-            if (event.text == "/") { root.press-key("÷"); return accept; }
-            if (event.text == "%") { root.press-key("%"); return accept; }
-            if (event.text == "^") { root.press-key("^"); return accept; }
-            if (event.text == "(" || event.text == ")") { root.press-key("()"); return accept; }
-            if (event.text == "=" || event.text == Key.Return) { root.press-key("="); return accept; }
-            if (event.text == Key.Backspace) { root.press-key("BACKSPACE"); return accept; }
-            if (event.text == Key.Escape || event.text == "c" || event.text == "C") { root.press-key("AC"); return accept; }
-            if (event.text == "t" || event.text == "T" || event.text == Key.F2) { root.open-skin-dialog(); return accept; }
-            return reject;
-        }
+    // Calculator state.
+    property <bool> powered: true;
+    property <bool> shift;
+    property <bool> alpha;
+    property <bool> hyp;
+    property <bool> sto;
+    property <bool> rcl;
+    property <string> mode: "COMP";       // COMP CMPLX SD REG BASE EQN MAT VCT
+    property <string> base-name: "dec";
+    // What the display shows: edit, result, replay, error, msg, calc, solve,
+    // eqn, eqn-res, mat-edit, vct-edit, ans-view.
+    property <string> screen: "edit";
+    property <string> menu: "";            // an open menu, see menu-key()
+    property <int> page;
+    property <int> code;                    // CONST / CONV digits so far
+    property <int> code-len;
+    property <string> menu-arg;             // what a sub-menu applies to
+    property <int> pick;                    // the matrix / vector chosen
+    property <int> dim-m;
+
+    property <string> last-expr;
+    property <string> l1-suffix;
+    property <string> result-label;
+    property <string> main-text: "0";
+    property <string> alt-text;             // imaginary part or angle
+    property <bool> alt-shown;
+    property <bool> eng-shown;
+    property <bool> improper;               // d/c: fractions not mixed
+    property <bool> norm2;                  // Norm 2 rather than Norm 1
+    property <bool> comma;                  // setup: decimal comma in results
+    property <bool> eng-on;                 // setup: engineering symbols in results
+    property <string> eng-sym;              // the symbol shown with eng-for
+    property <string> eng-for;
+    property <[string]> stmts;              // a multi-statement being stepped through
+    property <int> stmt-i: -1;              // the next statement, or -1
+    property <string> multi-src;
+    property <bool> disp;                   // "Disp": more statements to come
+    property <int> prev-n;
+    property <bool> frac-used;
+    property <bool> pol-pending;
+    property <string> form-pending;         // ▸r∠θ / ▸a+bi typed: "polar" or "rect"
+    property <bool> polar-default;          // setup: r∠θ rather than a+bi
+    property <int> eng-exp;                 // exponent shown by ENG / SHIFT ←
+    property <int> dms-count;
+    property <string> err-text;
+    property <string> err-return: "edit";
+    property <string> msg-text;
+    property <int> hist-idx: -1;
+
+    property <[string]> vars: ["A", "B", "C", "D", "E", "F", "X", "Y", "M"];
+    property <string> calc-expr;
+    property <int> calc-mask;
+    property <int> calc-step;
+    property <string> solve-expr;
+
+    property <int> eqn-type;                // 0: 2 unknowns, 1: 3, 2: degree 2, 3: degree 3
+    property <int> eqn-i;
+    property <[string]> coefs: ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"];
+    property <string> eqn-src;
+    property <int> eqn-k;
+    property <int> eqn-n;
+
+    property <[string]> mats: ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"];
+    property <[int]> mat-rows: [0, 0, 0];
+    property <[int]> mat-cols: [0, 0, 0];
+    property <[string]> vcts: ["0", "0", "0", "0", "0", "0", "0", "0", "0"];
+    property <[int]> vct-dim: [0, 0, 0];
+    property <int> el;                      // element being edited / viewed
+    property <int> ans-m;
+    property <int> ans-n;
+
+    property <string> sd-x;
+    property <string> sd-y;
+    property <int> sd-n;
+    property <string> prev-x;
+    property <string> prev-y;
+    property <int> reg-type;                // Lin Log Exp Pwr Inv Quad
+
+    property <[string]> const-names: ["_mp", "_mn", "_me", "_mmu", "_a0", "_h", "_muN", "_muB", "_hbar", "_alpha", "_re", "_lambdac", "_gammap", "_lambdacp", "_lambdacn", "_Rinf", "_u", "_mup", "_mue", "_mun", "_mumu", "_F", "_qe", "_NA", "_kB", "_Vm", "_R", "_c", "_c1", "_c2", "_sigma", "_eps0", "_mu0", "_phi0", "_gn", "_G0", "_Z0", "_t0", "_G", "_Patm"];
+    property <[string]> conv-units: ["_in", "_cm", "_ft", "_m", "_yd", "_m", "_mi", "_km", "_nmi", "_m", "_acre", "_m2", "_galUS", "_L", "_galUK", "_L", "_pc", "_km", "_kmh", "_mps", "_oz", "_g", "_lb", "_kg", "_atm", "_Pa", "_mmHg", "_Pa", "_hp", "_kW", "_kgfcm2", "_Pa", "_kgfm", "_J", "_psi", "_kPa", "_degF", "_degC", "_J", "_cal"];
+
+    // ── Display bindings ──
+
+    property <bool> stats: mode == "SD" || mode == "REG";
+    property <bool> prompt-screen: screen == "calc" || screen == "solve" || screen == "eqn" || screen == "mat-edit" || screen == "vct-edit";
+    property <bool> show-editor: menu == "" && (screen == "edit" || (prompt-screen && expression != ""));
+
+    property <string> menu-title: menu == "fix" ? "Fix 0~9?" : menu == "sci" ? "Sci 0~9?" : menu == "norm" ? "Norm 1~2?" : menu == "const" ? "CONST" : menu == "conv" ? "CONV" : menu == "eqn-n" ? (page == 0 ? "Unknowns?" : "Degree?") : menu == "mat-m" ? "Mat" + pick-letter + "(m×n) m?" : menu == "mat-n" ? "Mat" + pick-letter + "(m×n) n?" : menu == "vct-m" ? "Vct" + pick-letter + "(m) m?" : "";
+    property <string> menu-l2: menu == "eqn-n" ? "2 3" : (menu == "const" || menu == "conv") && code-len == 1 ? code + "" : "";
+    property <[string]> menu-items: menu == "m1" ? ["COMP", "CMPLX"] : menu == "m2" ? ["SD", "REG", "BASE"] : menu == "m3" ? ["EQN", "MAT", "VCT"] : menu == "m4" ? ["Deg", "Rad", "Gra"] : menu == "m5" ? ["Fix", "Sci", "Norm"] : menu == "m6" ? ["Disp"] : menu == "disp" ? (page == 0 ? ["EngON", "EngOFF"] : page == 1 ? ["a+bi", "r∠θ"] : page == 2 ? ["ab/c", "d/c"] : ["Dot", "Comma"]) : menu == "clr" ? [stats ? "Scl" : "Mcl", "Mode", "All"] : menu == "drg" ? ["D", "R", "G"] : menu == "logic" ? (page == 0 ? ["and", "or", "xnor"] : page == 1 ? ["xor", "Not", "Neg"] : ["d", "h", "b", "o"]) : menu == "reg" ? (page == 0 ? ["Lin", "Log", "Exp"] : ["Pwr", "Inv", "Quad"]) : menu == "ssum" ? (page == 0 ? ["Σx²", "Σx", "n"] : ["Σy²", "Σy", "Σxy"]) : menu == "svar" ? (page == 0 ? ["x̄", "xσn", "xσn-1"] : page == 1 ? ["ȳ", "yσn", "yσn-1"] : page == 2 ? (reg-type == 5 ? ["A", "B", "C"] : ["A", "B", "r"]) : (reg-type == 5 ? ["x̂1", "x̂2", "ŷ"] : ["x̂", "ŷ"])) : menu == "distr" ? ["P(", "Q(", "R(", "▸t"] : menu == "mat" ? (page == 0 ? ["Dim", "Edit", "Mat"] : ["Det", "Trn"]) : menu == "vct" ? (page == 0 ? ["Dim", "Edit", "Vct"] : ["Dot", "Cross"]) : menu == "mat-pick" ? (menu-arg == "insert" ? ["A", "B", "C", "Ans"] : ["MatA", "MatB", "MatC"]) : menu == "vct-pick" ? (menu-arg == "insert" ? ["A", "B", "C", "Ans"] : ["VctA", "VctB", "VctC"]) : [];
+    property <int> menu-pages: menu == "logic" ? 3 : menu == "disp" ? 4 : menu == "reg" || menu == "mat" || menu == "vct" || menu == "eqn-n" ? 2 : menu == "ssum" ? (mode == "REG" ? 2 : 1) : menu == "svar" ? (mode == "REG" ? 4 : 1) : 1;
+    property <string> pick-letter: pick == 0 ? "A" : pick == 1 ? "B" : "C";
+
+    property <string> line1: menu != "" ? menu-title : screen == "result" ? (result-label != "" ? result-label : last-expr + l1-suffix) : screen == "replay" ? expression : screen == "error" ? err-text : screen == "msg" ? msg-text : screen == "eqn-res" ? result-label : screen == "ans-view" ? result-label : prompt-screen ? result-label : "";
+
+    property <string> line2: menu != "" ? menu-l2 : screen == "error" || screen == "msg" ? "" : (screen == "result" || screen == "eqn-res") && alt-shown ? alt-text : main-text;
+    property <[string]> line2-parts: mode == "BASE" ? [line2, ""] : split-exponent(line2);
+    property <string> mantissa: line2-parts[0];
+    property <bool> needs-dot: mode != "BASE" && mantissa.is-float() && mantissa == (round(mantissa.to-float()) + "");
+    property <[string]> glyphs: characters(mantissa + (needs-dot ? "." : ""));
+    // BASE results come as 0xFF / 0b101 / 0o17: the calculator shows the digits only.
+    property <bool> hide-prefix: mode == "BASE" && glyphs.length > 2 && glyphs[0] == "0" && (glyphs[1] == "x" || glyphs[1] == "b" || glyphs[1] == "o");
+    // The exponent always shows two digits: 03, -03, 10.
+    property <string> exponent: line2-parts[1];
+    property <bool> short-exp: exponent != "" && abs(exponent.to-float()) < 10;
+    property <[string]> exp-glyphs: characters(!short-exp ? exponent : exponent.to-float() < 0 ? "-0" + abs(exponent.to-float()) : "0" + exponent);
+    property <bool> fix-on: setting-notation == "fix:0" || setting-notation == "fix:1" || setting-notation == "fix:2" || setting-notation == "fix:3" || setting-notation == "fix:4" || setting-notation == "fix:5" || setting-notation == "fix:6" || setting-notation == "fix:7" || setting-notation == "fix:8" || setting-notation == "fix:9";
+    property <bool> sci-on: setting-notation != "normal" && setting-notation != "eng" && !fix-on;
+    property <bool> blink: Math.mod(animation-tick() / 1ms, 1000) < 520;
+
+    // ── Helpers ──
+
+    pure function var-of(id: string) -> string {
+        return id == "NEG" ? "A" : id == "DMS" ? "B" : id == "HYP" ? "C" : id == "SIN" ? "D" : id == "COS" ? "E" : id == "TAN" ? "F" : id == "RP" ? "X" : id == "COMMA" ? "Y" : id == "MPLUS" ? "M" : "";
+    }
+    pure function is-digit(id: string) -> bool {
+        return id == "0" || id == "1" || id == "2" || id == "3" || id == "4" || id == "5" || id == "6" || id == "7" || id == "8" || id == "9";
+    }
+    // Keys that act on the value before them: after a result they start
+    // from Ans, like the real calculator.
+    pure function is-op(t: string) -> bool {
+        return t == "+" || t == "−" || t == "×" || t == "÷" || t == "^" || t == "^2" || t == "^3" || t == "^(−1)" || t == "!" || t == "%" || t == "°" || t == "ʳ" || t == "ᵍ" || t == "∠" || t == "nPr" || t == "nCr" || t == "ˣ√";
+    }
+    pure function bit(mask: int, i: int) -> bool {
+        return Math.mod(floor(mask / pow(2, i)), 2) == 1;
+    }
+    pure function next-var(mask: int, from: int) -> int {
+        return from <= 0 && bit(mask, 0) ? 0 : from <= 1 && bit(mask, 1) ? 1 : from <= 2 && bit(mask, 2) ? 2 : from <= 3 && bit(mask, 3) ? 3 : from <= 4 && bit(mask, 4) ? 4 : from <= 5 && bit(mask, 5) ? 5 : from <= 6 && bit(mask, 6) ? 6 : from <= 7 && bit(mask, 7) ? 7 : from <= 8 && bit(mask, 8) ? 8 : 9;
+    }
+    // A value to splice into an expression: negatives get brackets.
+    pure function wrap(v: string) -> string {
+        return v.to-float() < 0 ? "(" + v + ")" : v;
+    }
+    pure function eqn-count() -> int {
+        return eqn-type == 0 ? 6 : eqn-type == 1 ? 12 : eqn-type == 2 ? 3 : 4;
+    }
+    pure function eqn-label(i: int) -> string {
+        return eqn-type >= 2 ? (i == 0 ? "a" : i == 1 ? "b" : i == 2 ? "c" : "d") : (eqn-type == 0 ? (Math.mod(i, 3) == 0 ? "a" : Math.mod(i, 3) == 1 ? "b" : "c") + (floor(i / 3) + 1) : (Math.mod(i, 4) == 0 ? "a" : Math.mod(i, 4) == 1 ? "b" : Math.mod(i, 4) == 2 ? "c" : "d") + (floor(i / 4) + 1));
+    }
+    pure function unit-row(i: int, n: int) -> string {
+        return n == 1 ? "[1]" : n == 2 ? (i == 0 ? "[1,0]" : "[0,1]") : (i == 0 ? "[1,0,0]" : i == 1 ? "[0,1,0]" : "[0,0,1]");
+    }
+    pure function unit-col(i: int, n: int) -> string {
+        return n == 1 ? "[1]" : n == 2 ? (i == 0 ? "[1;0]" : "[0;1]") : (i == 0 ? "[1;0;0]" : i == 1 ? "[0;1;0]" : "[0;0;1]");
+    }
+    pure function mat-row(k: int, r: int) -> string {
+        return mats[k * 9 + r * 3] + (mat-cols[k] > 1 ? "," + mats[k * 9 + r * 3 + 1] : "") + (mat-cols[k] > 2 ? "," + mats[k * 9 + r * 3 + 2] : "");
+    }
+    pure function mat-text(k: int) -> string {
+        return "[" + mat-row(k, 0) + (mat-rows[k] > 1 ? ";" + mat-row(k, 1) : "") + (mat-rows[k] > 2 ? ";" + mat-row(k, 2) : "") + "]";
+    }
+    pure function vct-text(k: int) -> string {
+        return "[" + vcts[k * 3] + "," + vcts[k * 3 + 1] + (vct-dim[k] > 2 ? "," + vcts[k * 3 + 2] : "") + "]";
+    }
+    pure function xs() -> string { return "{" + sd-x + "}"; }
+    pure function ys() -> string { return "{" + sd-y + "}"; }
+    pure function reg-fit() -> string {
+        return reg-type == 0 ? "linreg(" + xs() + "," + ys() + ")" : reg-type == 1 ? "logreg(" + xs() + "," + ys() + ")" : reg-type == 2 ? "expreg(" + xs() + "," + ys() + ")" : reg-type == 3 ? "powreg(" + xs() + "," + ys() + ")" : reg-type == 4 ? "linreg(1÷" + xs() + "," + ys() + ")" : "quadreg(" + xs() + "," + ys() + ")";
+    }
+    pure function reg-r() -> string {
+        return reg-type == 1 ? "corr(ln(" + xs() + ")," + ys() + ")" : reg-type == 2 ? "corr(" + xs() + ",ln(" + ys() + "))" : reg-type == 3 ? "corr(ln(" + xs() + "),ln(" + ys() + "))" : reg-type == 4 ? "corr(1÷" + xs() + "," + ys() + ")" : "corr(" + xs() + "," + ys() + ")";
+    }
+    function coef(n: int) -> string {
+        return "(" + evaluate-exact("item(" + reg-fit() + "," + n + ")") + ")";
     }
 
-    // Resolves keypress depending on SHIFT or ALPHA state, then automatically unlatches
-    function press-casio(base: string, shifted: string, alpha-val: string) {
-        if (!root.is-powered-on) {
+    // ── Actions ──
+
+    // Types `t` into the expression.
+    function ins(t: string) {
+        if (screen == "result" || screen == "replay" || screen == "msg" || screen == "ans-view") {
+            let op = is-op(t);
+            press-key("AC");
+            frac-used = false;
+            screen = "edit";
+            if (op) {
+                press-key("Ans");
+            }
+        } else if (screen == "error") {
+            screen = err-return;
+        }
+        hist-idx = -1;
+        press-key(t);
+    }
+
+    function clear-all() {
+        press-key("AC");
+        screen = "edit";
+        menu = "";
+        main-text = "0";
+        alt-text = "";
+        alt-shown = false;
+        result-label = "";
+        l1-suffix = "";
+        frac-used = false;
+        pol-pending = false;
+        form-pending = "";
+        hyp = false;
+        sto = false;
+        rcl = false;
+        hist-idx = -1;
+        stmt-i = -1;
+        disp = false;
+    }
+
+    function show-error() {
+        screen = "error";
+        err-text = preview-result == "Format error" ? "Syntax ERROR" : preview-result == "Dimension error" ? "Dim ERROR" : preview-result == "Limit exceeded" ? "Stack ERROR" : "Math ERROR";
+    }
+
+    // Evaluates `e`, keeping it for the top line, replay and repeated "=".
+    function run(e: string) {
+        set-setting("fractions", frac-used ? "on" : "off");
+        set-setting("complex-form", form-pending != "" ? form-pending : polar-default ? "polar" : "rect");
+        last-expr = e;
+        l1-suffix = "";
+        result-label = "";
+        err-return = "edit";
+        submit-expression(e);
+        if (!is-error && pol-pending) {
+            // Pol( / Rec( give two values: the first is shown, both are kept in E and F.
+            // (One statement each: after the first store, Ans is no longer the pair.)
+            let first = evaluate-exact("item(Ans,1)");
+            let second = evaluate-exact("item(Ans,2)");
+            submit-expression(wrap(second) + "→F");
+            submit-expression(wrap(first) + "→E");
+        }
+        pol-pending = false;
+        form-pending = "";
+        after-eval();
+    }
+
+    function after-eval() {
+        hist-idx = -1;
+        stmt-i = -1;
+        disp = false;
+        if (is-error) {
+            show-error();
             return;
         }
-        if (root.shift-active) {
-            root.shift-active = false;
-            if (shifted != "") {
-                root.press-key(shifted);
+        screen = "result";
+        alt-shown = false;
+        eng-shown = false;
+        set-result(expression);
+    }
+
+    // Norm 1 switches to ×10 below 0.01 and Norm 2 below 10⁻⁹ (the engine's
+    // normal-min). The LCD has 10 digit cells, and the "0." and any zeros
+    // after it take cells too, so values below 1 show fewer significant
+    // digits: 0.982607368, 0.003333333.
+    function plain(r: string) -> string {
+        // (Compare as text: Slint's float == treats tiny values as 0.)
+        if (!r.is-float() || r == "0" || setting-notation != "normal") {
+            return r;
+        }
+        let x = abs(r.to-float());
+        if (eng-on) {
+            // Engineering symbols: 0.0025 → 2.5 m.
+            // One digit cell goes to the symbol.
+            let saved = setting-notation;
+            set-setting("notation", "eng");
+            set-setting("digits", "9");
+            let parts = split-exponent(evaluate("Ans"));
+            set-setting("digits", "10");
+            set-setting("notation", saved);
+            let k = parts[1] == "" ? 0 : parts[1].to-float();
+            if (k != 0 && k >= -15 && k <= 12) {
+                eng-sym = k == 3 ? "k" : k == 6 ? "M" : k == 9 ? "G" : k == 12 ? "T" : k == -3 ? "m" : k == -6 ? "μ" : k == -9 ? "n" : k == -12 ? "p" : "f";
+                eng-for = parts[0];
+                return parts[0];
             }
-        } else if (root.alpha-active) {
-            root.alpha-active = false;
-            if (alpha-val != "") {
-                root.press-key(alpha-val);
+        }
+        if (x < (norm2 ? 0.000000001 : 0.01)) {
+            return r;
+        }
+        if (x < 1) {
+            let zeros = max(0, Math.ceil(-Math.log(x, 10)) - 1);
+            set-setting("digits", (9 - zeros) + "");
+            let shown = evaluate("Ans");
+            set-setting("digits", "10");
+            return shown;
+        }
+        return r;
+    }
+
+    // What the 7-segment line shows for the result `r`.
+    function set-result(r: string) {
+        alt-text = "";
+        if (r.is-float() || r == "") {
+            main-text = plain(r);
+            return;
+        }
+        if (mode == "CMPLX") {
+            let polar = setting-complex-form == "polar";
+            let a = evaluate(polar ? "abs(Ans)" : "re(Ans)");
+            let b = evaluate(polar ? "arg(Ans)" : "im(Ans)");
+            if (a != "") {
+                main-text = a;
+                alt-text = b == "0" ? "" : b;
+                return;
+            }
+        }
+        if ((mode == "MAT" || mode == "VCT") && open-ans-view()) {
+            return;
+        }
+        if (setting-fractions == "on" && !improper) {
+            let whole = evaluate-exact("int(Ans)");
+            if (whole != "0" && whole != "") {
+                main-text = whole + "/" + evaluate("abs(frac(Ans))");
+                return;
+            }
+        }
+        main-text = r;
+    }
+
+    // Shows Ans with one display setting changed for a moment (ab/c, °′″, ENG).
+    function show-ans-with(key: string, value: string, restore: string) {
+        set-setting(key, value);
+        main-text = evaluate("Ans");
+        set-setting(key, restore);
+        alt-shown = false;
+    }
+
+    function equals() {
+        if (screen == "result" && stmt-i >= 0) {
+            step();
+            return;
+        }
+        let e = screen == "result" ? last-expr : expression;
+        if (e == "") {
+            return;
+        }
+        stmts = split(e, ":");
+        if (stmts.length > 1) {
+            multi-src = e;
+            stmt-i = 0;
+            step();
+        } else {
+            run(e);
+        }
+    }
+
+    // A multi-statement runs one statement per "=", showing "Disp" until
+    // the last one, as on the real calculator.
+    function step() {
+        let i = stmt-i;
+        run(stmts[i]);
+        last-expr = multi-src;
+        if (is-error) {
+            return;
+        }
+        stmt-i = i + 1 < stmts.length ? i + 1 : -1;
+        disp = stmt-i >= 0;
+    }
+
+    function store(v: string) {
+        let from-result = screen == "result";
+        let e = expression;
+        if (!from-result && e != "") {
+            run(e);
+            if (is-error) {
+                return;
+            }
+        }
+        submit-expression("Ans→" + v);
+        last-expr = from-result || e == "" ? "Ans" : e;
+        l1-suffix = "→" + v;
+        result-label = "";
+        after-eval();
+    }
+
+    function recall(v: string) {
+        submit-expression(v);
+        after-eval();
+        result-label = v + "=";
+        last-expr = v;
+    }
+
+    function memory(add: bool) {
+        let from-result = screen == "result";
+        let e = from-result ? "Ans" : expression;
+        if (e == "") {
+            return;
+        }
+        if (from-result) {
+            press-key("AC");
+            press-key("Ans");
+        }
+        press-key(add ? "M+" : "M−");
+        last-expr = e;
+        l1-suffix = add ? "M+" : "M-";
+        result-label = "";
+        after-eval();
+    }
+
+    // "−" straight after ":" subtracts from the last result; the engine
+    // reads a leading "−" as a negative sign, so Ans is written out.
+    function minus-after-colon(id: string) {
+        let before = characters(expression-before-cursor);
+        if (id == "MINUS" && screen == "edit" && before.length > 0 && before[before.length - 1] == ":") {
+            press-key("Ans");
+        }
+    }
+
+    // Puts `e` into the editor, e.g. to wrap the expression in something.
+    function load(e: string) {
+        select-history-item(e);
+        screen = "edit";
+    }
+
+    function current() -> string {
+        return screen == "result" ? "Ans" : expression == "" ? "Ans" : expression;
+    }
+
+    function set-mode(m: string) {
+        mode = m;
+        set-setting("complex", m == "CMPLX" || m == "EQN" ? "on" : "off");
+        set-setting("word-mode", m == "BASE" ? "on" : "off");
+        set-setting("word-bits", "32");
+        set-setting("base", "dec");
+        set-setting("input-base", "dec");
+        set-setting("complex-form", polar-default ? "polar" : "rect");
+        base-name = "dec";
+        clear-all();
+        if (m == "SD" || m == "REG") {
+            clear-stats();
+        }
+        if (m == "REG") {
+            open-menu("reg");
+        }
+        if (m == "EQN") {
+            open-menu("eqn-n");
+        }
+    }
+
+    function set-base(b: string) {
+        base-name = b;
+        // Word sizes of this model: 32-bit DEC/HEX, 10-digit BIN, 10-digit OCT.
+        set-setting("word-bits", b == "bin" ? "10" : b == "oct" ? "30" : "32");
+        set-setting("base", b);
+        set-setting("input-base", b);
+        if (screen == "result") {
+            main-text = evaluate("Ans");
+        }
+    }
+
+    function reset-mode() {
+        set-setting("angle", "deg");
+        set-setting("notation", "normal");
+        set-setting("digits", "10");
+        set-setting("dms", "off");
+        improper = false;
+        norm2 = false;
+        comma = false;
+        set-setting("normal-min", "-2");
+        set-mode("COMP");
+    }
+
+    function clear-stats() {
+        sd-x = "";
+        sd-y = "";
+        sd-n = 0;
+        prev-x = "";
+        prev-y = "";
+    }
+
+    function open-menu(m: string) {
+        menu = m;
+        page = 0;
+        code = 0;
+        code-len = 0;
+    }
+
+    function message(t: string) {
+        clear-all();
+        screen = "msg";
+        msg-text = t;
+    }
+
+    // ── CALC and SOLVE ──
+
+    function var-used(e: string, v: string, base: string) -> bool {
+        return evaluate-exact(v + "+1→" + v + ":" + e) != base;
+    }
+
+    function start-calc() {
+        let e = screen == "result" || screen == "replay" ? (calc-expr != "" && screen == "result" ? calc-expr : last-expr) : expression;
+        if (e == "") {
+            return;
+        }
+        let base = evaluate-exact(e);
+        calc-expr = e;
+        calc-mask = (var-used(e, "A", base) ? 1 : 0) + (var-used(e, "B", base) ? 2 : 0) + (var-used(e, "C", base) ? 4 : 0) + (var-used(e, "D", base) ? 8 : 0) + (var-used(e, "E", base) ? 16 : 0) + (var-used(e, "F", base) ? 32 : 0) + (var-used(e, "X", base) ? 64 : 0) + (var-used(e, "Y", base) ? 128 : 0) + (var-used(e, "M", base) ? 256 : 0);
+        calc-step = next-var(calc-mask, 0);
+        if (calc-step > 8) {
+            run(e);
+            return;
+        }
+        press-key("AC");
+        screen = "calc";
+        calc-prompt();
+    }
+
+    function calc-prompt() {
+        result-label = vars[calc-step] + "?";
+        main-text = evaluate(vars[calc-step]);
+    }
+
+    function start-solve() {
+        let e = screen == "result" || screen == "replay" ? last-expr : expression;
+        if (e == "") {
+            return;
+        }
+        solve-expr = e;
+        press-key("AC");
+        screen = "solve";
+        result-label = "X?";
+        main-text = evaluate("X");
+    }
+
+    // The value typed at a prompt: "" when nothing was typed, "?" when it
+    // can't be worked out.
+    function typed() -> string {
+        if (expression == "") {
+            return "";
+        }
+        let v = evaluate-exact(expression);
+        return v == "" ? "?" : v;
+    }
+
+    function prompt-error() {
+        err-return = screen;
+        err-text = "Math ERROR";
+        press-key("AC");
+        screen = "error";
+    }
+
+    // "=" at a prompt.
+    function commit(step: int) {
+        let v = typed();
+        if (v == "?") {
+            prompt-error();
+            return;
+        }
+        if (screen == "calc") {
+            if (v != "") {
+                submit-expression(v + "→" + vars[calc-step]);
+            }
+            press-key("AC");
+            calc-step = next-var(calc-mask, calc-step + 1);
+            if (calc-step > 8) {
+                run(calc-expr);
+                screen = is-error ? "error" : "result";
             } else {
-                root.press-key(base);
+                calc-prompt();
+            }
+        } else if (screen == "solve") {
+            if (v != "") {
+                submit-expression(v + "→X");
+            }
+            press-key("AC");
+            last-expr = "solve(" + solve-expr;
+            err-return = "edit";
+            submit-expression(last-expr);
+            after-eval();
+            if (!is-error) {
+                result-label = "X=";
+            }
+        } else if (screen == "eqn") {
+            if (v != "") {
+                coefs[eqn-i] = v;
+            }
+            press-key("AC");
+            let n = eqn-i + step;
+            if (step > 0 && n >= eqn-count()) {
+                if (step == 1) {
+                    eqn-solve();
+                    return;
+                }
+                eqn-i = 0;
+            } else {
+                eqn-i = max(0, n);
+            }
+            eqn-prompt();
+        } else if (screen == "mat-edit") {
+            if (v != "") {
+                mats[pick * 9 + floor(el / mat-cols[pick]) * 3 + Math.mod(el, mat-cols[pick])] = v;
+            }
+            press-key("AC");
+            let count = mat-rows[pick] * mat-cols[pick];
+            el = Math.mod(el + step + count, count);
+            mat-prompt();
+        } else if (screen == "vct-edit") {
+            if (v != "") {
+                vcts[pick * 3 + el] = v;
+            }
+            press-key("AC");
+            el = Math.mod(el + step + vct-dim[pick], vct-dim[pick]);
+            vct-prompt();
+        }
+    }
+
+    // ── EQN ──
+
+    function eqn-start(t: int) {
+        eqn-type = t;
+        eqn-i = 0;
+        menu = "";
+        press-key("AC");
+        screen = "eqn";
+        eqn-prompt();
+    }
+
+    function eqn-prompt() {
+        result-label = eqn-label(eqn-i) + "?";
+        main-text = coefs[eqn-i];
+    }
+
+    function eqn-solve() {
+        eqn-src = eqn-type == 0 ? "linsolve([" + coefs[0] + "," + coefs[1] + ";" + coefs[3] + "," + coefs[4] + "],{" + coefs[2] + "," + coefs[5] + "})" : eqn-type == 1 ? "linsolve([" + coefs[0] + "," + coefs[1] + "," + coefs[2] + ";" + coefs[4] + "," + coefs[5] + "," + coefs[6] + ";" + coefs[8] + "," + coefs[9] + "," + coefs[10] + "],{" + coefs[3] + "," + coefs[7] + "," + coefs[11] + "})" : eqn-type == 2 ? "roots(" + coefs[0] + "," + coefs[1] + "," + coefs[2] + ")" : "roots(" + coefs[0] + "," + coefs[1] + "," + coefs[2] + "," + coefs[3] + ")";
+        let n = evaluate-exact("count(" + eqn-src + ")");
+        if (n == "") {
+            err-return = "eqn";
+            err-text = "Math ERROR";
+            screen = "error";
+            eqn-i = 0;
+            return;
+        }
+        eqn-n = n.to-float();
+        eqn-k = 0;
+        screen = "eqn-res";
+        eqn-show();
+    }
+
+    function eqn-show() {
+        let item = "item(" + eqn-src + "," + (eqn-k + 1) + ")";
+        main-text = evaluate((polar-default ? "abs(" : "re(") + item + ")");
+        let im = evaluate((polar-default ? "arg(" : "im(") + item + ")");
+        alt-text = im == "0" ? "" : im;
+        alt-shown = false;
+        result-label = eqn-type < 2 ? (eqn-k == 0 ? "x=" : eqn-k == 1 ? "y=" : "z=") : (eqn-n == 1 ? "x=" : "x" + (eqn-k + 1) + "=");
+    }
+
+    // ── MAT and VCT ──
+
+    function mat-prompt() {
+        result-label = "Mat" + pick-letter + (floor(el / mat-cols[pick]) + 1) + (Math.mod(el, mat-cols[pick]) + 1);
+        main-text = mats[pick * 9 + floor(el / mat-cols[pick]) * 3 + Math.mod(el, mat-cols[pick])];
+    }
+
+    function vct-prompt() {
+        result-label = "Vct" + pick-letter + (el + 1);
+        main-text = vcts[pick * 3 + el];
+    }
+
+    function start-edit(vector: bool) {
+        el = 0;
+        menu = "";
+        press-key("AC");
+        if (vector) {
+            screen = "vct-edit";
+            vct-prompt();
+        } else {
+            screen = "mat-edit";
+            mat-prompt();
+        }
+    }
+
+    // A matrix or vector result opens the MatAns / VctAns viewer.
+    function open-ans-view() -> bool {
+        if (mode == "VCT") {
+            ans-m = evaluate("item(Ans,3)") != "" ? 3 : evaluate("item(Ans,2)") != "" ? 2 : 0;
+            ans-n = 1;
+        } else {
+            ans-m = evaluate("[1,0,0]×Ans") != "" ? 3 : evaluate("[1,0]×Ans") != "" ? 2 : evaluate("[1]×Ans") != "" ? 1 : 0;
+            ans-n = evaluate("Ans×[1;0;0]") != "" ? 3 : evaluate("Ans×[1;0]") != "" ? 2 : evaluate("Ans×[1]") != "" ? 1 : 0;
+        }
+        if (ans-m == 0 || ans-n == 0) {
+            return false;
+        }
+        el = 0;
+        screen = "ans-view";
+        ans-show();
+        return true;
+    }
+
+    function ans-show() {
+        if (mode == "VCT") {
+            result-label = "VctAns" + (el + 1);
+            main-text = evaluate("item(Ans," + (el + 1) + ")");
+        } else {
+            let r = floor(el / ans-n);
+            let c = Math.mod(el, ans-n);
+            result-label = "MatAns" + (r + 1) + (c + 1);
+            main-text = evaluate("det(" + unit-row(r, ans-m) + "×Ans×" + unit-col(c, ans-n) + ")");
+        }
+    }
+
+    // ── SD / REG ──
+
+    function data-in() {
+        let e = screen == "result" ? "Ans" : expression;
+        if (e == "") {
+            return;
+        }
+        // "x;f" (SD) or "x,y;f" (REG): the data f times.
+        let parts = split(e, ";");
+        let v = parts[0];
+        let f = parts.length > 1 ? evaluate-exact(parts[1]) : "1";
+        let x = evaluate-exact(mode == "REG" ? "item({" + v + "},1)" : v);
+        let y = mode == "REG" ? evaluate-exact("item({" + v + "},2)") : "0";
+        if (f == "" || f.to-float() < 1 || f.to-float() != round(f.to-float())) {
+            screen = "error";
+            err-text = "Math ERROR";
+            return;
+        }
+        if (x == "" || y == "") {
+            show-error();
+            err-text = "Syntax ERROR";
+            return;
+        }
+        prev-x = sd-x;
+        prev-y = sd-y;
+        prev-n = sd-n;
+        let xa = f == "1" ? x : "rep(" + x + "," + f + ")";
+        let ya = f == "1" ? y : "rep(" + y + "," + f + ")";
+        sd-x = sd-n == 0 ? xa : sd-x + "," + xa;
+        sd-y = sd-n == 0 ? ya : sd-y + "," + ya;
+        sd-n += f.to-float();
+        press-key("AC");
+        screen = "result";
+        last-expr = "";
+        l1-suffix = "";
+        result-label = "n=";
+        main-text = sd-n + "";
+    }
+
+    function data-undo() {
+        if (sd-n == 0) {
+            return;
+        }
+        sd-x = prev-x;
+        sd-y = prev-y;
+        sd-n = prev-n;
+        press-key("AC");
+        screen = "result";
+        result-label = "n=";
+        main-text = sd-n + "";
+    }
+
+    // Puts a statistic into the expression as its value.
+    function stat(f: string) {
+        let v = evaluate-exact(f);
+        if (v == "") {
+            menu = "";
+            show-error();
+            err-text = "Math ERROR";
+            return;
+        }
+        menu = "";
+        ins(wrap(v));
+    }
+
+    function estimate(x-hat: bool, second: bool) {
+        menu = "";
+        let t = "(" + current() + ")";
+        let a = coef(1);
+        let b = coef(2);
+        let c = reg-type == 5 ? coef(3) : "0";
+        load(reg-type == 0 ? (x-hat ? "(" + t + "−" + a + ")÷" + b : a + "+" + b + "×" + t) : reg-type == 1 ? (x-hat ? "e^((" + t + "−" + a + ")÷" + b + ")" : a + "+" + b + "×ln(" + t + ")") : reg-type == 2 ? (x-hat ? "ln(" + t + "÷" + a + ")÷" + b : a + "×e^(" + b + "×" + t + ")") : reg-type == 3 ? (x-hat ? "(" + t + "÷" + a + ")^(1÷" + b + ")" : a + "×" + t + "^" + b) : reg-type == 4 ? (x-hat ? b + "÷(" + t + "−" + a + ")" : a + "+" + b + "÷" + t) : (x-hat ? "(−" + b + (second ? "−" : "+") + "√(" + b + "^2−4×" + c + "×(" + a + "−" + t + ")))÷(2×" + c + ")" : a + "+" + b + "×" + t + "+" + c + "×" + t + "^2"));
+    }
+
+    // ── Menus ──
+
+    function menu-key(id: string) {
+        if (id == "AC" || id == "ON") {
+            menu = "";
+            return;
+        }
+        if (id == "MODE" && (menu == "m1" || menu == "m2" || menu == "m3" || menu == "m4" || menu == "m5" || menu == "m6")) {
+            menu = menu == "m1" ? "m2" : menu == "m2" ? "m3" : menu == "m3" ? "m4" : menu == "m4" ? "m5" : menu == "m5" ? "m6" : "m1";
+            return;
+        }
+        if (id == "RIGHT" || id == "DOWN" || (id == "INV" && menu == "logic")) {
+            page = Math.mod(page + 1, menu-pages);
+            return;
+        }
+        if (id == "LEFT" || id == "UP") {
+            page = Math.mod(page + menu-pages - 1, menu-pages);
+            return;
+        }
+        if (!is-digit(id)) {
+            return;
+        }
+        let n = id.to-float();
+        let m = menu;
+
+        if (m == "const" || m == "conv") {
+            code = code * 10 + n;
+            code-len += 1;
+            if (code-len < 2) {
+                return;
+            }
+            menu = "";
+            if (code < 1 || code > 40) {
+                return;
+            }
+            if (m == "const") {
+                ins(const-names[code - 1]);
+            } else {
+                let i = floor((code - 1) / 2) * 2;
+                let from = Math.mod(code - 1, 2) == 0 ? conv-units[i] : conv-units[i + 1];
+                let to = Math.mod(code - 1, 2) == 0 ? conv-units[i + 1] : conv-units[i];
+                load("convert(" + current() + "," + from + "," + to + ")");
+            }
+            return;
+        }
+        if (m == "fix") {
+            set-setting("notation", "fix:" + n);
+            menu = "";
+            return;
+        }
+        if (m == "sci") {
+            set-setting("notation", "sci:" + (n == 0 ? 10 : n));
+            menu = "";
+            return;
+        }
+        if (m == "norm") {
+            if (n == 1 || n == 2) {
+                set-setting("notation", "normal");
+                set-setting("normal-min", n == 2 ? "-9" : "-2");
+                norm2 = n == 2;
+                menu = "";
+            }
+            return;
+        }
+        if (m == "eqn-n") {
+            if (n == 2 || n == 3) {
+                eqn-start(page == 0 ? n - 2 : n);
+            }
+            return;
+        }
+        if (m == "mat-m" || m == "vct-m") {
+            if (n < 1 || n > 3 || (m == "vct-m" && n < 2)) {
+                return;
+            }
+            if (m == "vct-m") {
+                vct-dim[pick] = n;
+                vcts[pick * 3] = "0";
+                vcts[pick * 3 + 1] = "0";
+                vcts[pick * 3 + 2] = "0";
+                start-edit(true);
+            } else {
+                dim-m = n;
+                menu = "mat-n";
+            }
+            return;
+        }
+        if (m == "mat-n") {
+            if (n < 1 || n > 3) {
+                return;
+            }
+            mat-rows[pick] = dim-m;
+            mat-cols[pick] = n;
+            start-edit(false);
+            return;
+        }
+        if (n < 1 || n > menu-items.length) {
+            return;
+        }
+        menu = "";
+        if (m == "m1") {
+            set-mode(n == 1 ? "COMP" : "CMPLX");
+        } else if (m == "m2") {
+            set-mode(n == 1 ? "SD" : n == 2 ? "REG" : "BASE");
+        } else if (m == "m3") {
+            set-mode(n == 1 ? "EQN" : n == 2 ? "MAT" : "VCT");
+        } else if (m == "m4") {
+            set-setting("angle", n == 1 ? "deg" : n == 2 ? "rad" : "grad");
+        } else if (m == "m5") {
+            open-menu(n == 1 ? "fix" : n == 2 ? "sci" : "norm");
+        } else if (m == "m6") {
+            open-menu("disp");
+        } else if (m == "disp") {
+            if (page == 0) {
+                eng-on = n == 1;
+                if (screen == "result") {
+                    set-result(expression);
+                }
+            } else if (page == 1) {
+                polar-default = n == 2;
+                set-setting("complex-form", polar-default ? "polar" : "rect");
+            } else if (page == 2) {
+                improper = n == 2;
+            } else {
+                comma = n == 2;
+            }
+        } else if (m == "clr") {
+            if (n == 1) {
+                if (stats) {
+                    clear-stats();
+                    message("Stat clear");
+                } else {
+                    press-key("CLEAR-VARIABLES");
+                    message("Mem Cleared");
+                }
+            } else if (n == 2) {
+                reset-mode();
+                message("Mode Clear");
+            } else {
+                press-key("CLEAR-VARIABLES");
+                mat-rows = [0, 0, 0];
+                mat-cols = [0, 0, 0];
+                vct-dim = [0, 0, 0];
+                coefs = ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"];
+                calc-expr = "";
+                reset-mode();
+                message("All Clear");
+            }
+        } else if (m == "drg") {
+            ins(n == 1 ? "°" : n == 2 ? "ʳ" : "ᵍ");
+        } else if (m == "logic") {
+            // Page 3: d h b o, the base of the next value typed.
+            ins(page == 0 ? (n == 1 ? "and(" : n == 2 ? "or(" : "xnor(") : page == 1 ? (n == 1 ? "xor(" : n == 2 ? "not(" : "neg(") : (n == 1 ? "d" : n == 2 ? "h" : n == 3 ? "b" : "o"));
+        } else if (m == "reg") {
+            reg-type = page * 3 + n - 1;
+            clear-stats();
+            clear-all();
+        } else if (m == "ssum") {
+            stat(page == 0 ? (n == 1 ? "sum(" + xs() + "^2)" : n == 2 ? "sum(" + xs() + ")" : "count(" + xs() + ")") : (n == 1 ? "sum(" + ys() + "^2)" : n == 2 ? "sum(" + ys() + ")" : "sum(" + xs() + "×" + ys() + ")"));
+        } else if (m == "svar") {
+            if (page == 0) {
+                stat((n == 1 ? "mean(" : n == 2 ? "sdp(" : "sd(") + xs() + ")");
+            } else if (page == 1) {
+                stat((n == 1 ? "mean(" : n == 2 ? "sdp(" : "sd(") + ys() + ")");
+            } else if (page == 2) {
+                stat(n == 3 && reg-type != 5 ? reg-r() : "item(" + reg-fit() + "," + n + ")");
+            } else if (reg-type == 5) {
+                estimate(n != 3, n == 2);
+            } else {
+                estimate(n == 1, false);
+            }
+        } else if (m == "distr") {
+            if (n == 1) {
+                ins("normcdf(−1E99,");
+            } else if (n == 2) {
+                ins("normcdf(0,abs(");
+            } else if (n == 3) {
+                ins("normcdf(−1E99,−");
+            } else {
+                let mean = evaluate-exact("mean(" + xs() + ")");
+                let sdp = evaluate-exact("sdp(" + xs() + ")");
+                load("((" + current() + ")−" + wrap(mean) + ")÷" + wrap(sdp));
+            }
+        } else if (m == "mat") {
+            if (page == 1) {
+                ins(n == 1 ? "det(" : "trn(");
+            } else {
+                menu-arg = n == 1 ? "dim" : n == 2 ? "edit" : "insert";
+                open-menu("mat-pick");
+            }
+        } else if (m == "vct") {
+            if (page == 1) {
+                ins(n == 1 ? "dot(" : "cross(");
+            } else {
+                menu-arg = n == 1 ? "dim" : n == 2 ? "edit" : "insert";
+                open-menu("vct-pick");
+            }
+        } else if (m == "mat-pick" || m == "vct-pick") {
+            let vector = m == "vct-pick";
+            if (n == 4) {
+                ins("Ans");
+                return;
+            }
+            pick = n - 1;
+            let defined = vector ? vct-dim[pick] > 0 : mat-rows[pick] > 0;
+            if (menu-arg == "dim" || (menu-arg == "edit" && !defined)) {
+                open-menu(vector ? "vct-m" : "mat-m");
+            } else if (menu-arg == "edit") {
+                start-edit(vector);
+            } else if (!defined) {
+                err-text = "Dim ERROR";
+                err-return = "edit";
+                screen = "error";
+            } else {
+                ins(vector ? vct-text(pick) : mat-text(pick));
+            }
+        }
+    }
+
+    // ── Keys ──
+    //
+    // key() handles what every key shares (power, SHIFT / ALPHA latches,
+    // open menus, STO / RCL, special screens), then hands the key to the
+    // handler for its group.
+
+    function key(id: string) {
+        if (!powered) {
+            if (id == "ON") {
+                powered = true;
+                clear-all();
+            }
+            return;
+        }
+        if (id == "SHIFT" || id == "ALPHA") {
+            shift = id == "SHIFT" && !shift;
+            alpha = id == "ALPHA" && !alpha;
+            return;
+        }
+        let s = shift;
+        let a = alpha;
+        shift = false;
+        alpha = false;
+        if (!is-digit(id) && id != "DOT" && id != "DMS") {
+            dms-count = 0;
+        }
+
+        if (menu != "") {
+            menu-key(id);
+        } else if (id == "ON") {
+            clear-all();
+        } else if (id == "MODE") {
+            open-menu(s ? "clr" : "m1");
+        } else if (sto || rcl) {
+            variable-key(id);
+        } else if (id == "AC" && s) {
+            powered = false;
+            clear-all();
+        } else if (!screen-key(id, s)) {
+            if (id == "HYP" && mode != "BASE" && !a) {
+                hyp = !hyp;
+                return;
+            }
+            let h = hyp;
+            hyp = false;
+            if (a) {
+                alpha-key(id);
+            } else if (mode == "BASE" && !s && base-key(id)) {
+            } else if (is-digit(id)) {
+                digit-key(id, s);
+            } else if (!operator-key(id, s) && !function-key(id, s, h)) {
+                cursor-key(id, s);
+            }
+        }
+    }
+
+    // After STO or RCL: the variable key.
+    function variable-key(id: string) {
+        let v = var-of(id);
+        if (v != "") {
+            if (sto) {
+                store(v);
+            } else {
+                recall(v);
+            }
+        }
+        sto = false;
+        rcl = false;
+    }
+
+    // Screens that take over some keys: errors, prompts, EQN results, the
+    // MatAns / VctAns viewer. Returns whether the key was used up.
+    function screen-key(id: string, s: bool) -> bool {
+        if (screen == "error") {
+            // Only back (◀ ▶) or clear (AC).
+            if (id == "LEFT" || id == "RIGHT") {
+                screen = err-return;
+            } else if (id == "AC") {
+                screen = err-return;
+                if (err-return == "edit") {
+                    clear-all();
+                } else {
+                    press-key("AC");
+                }
+            }
+            return true;
+        }
+        if (prompt-screen) {
+            // X?, a1?, MatA11, …
+            if (id == "EQ" && !s) {
+                commit(1);
+                return true;
+            }
+            if (screen != "calc" && screen != "solve" && (id == "DOWN" || id == "UP")) {
+                commit(id == "DOWN" ? 2 : -1);
+                return true;
+            }
+            if (id == "AC") {
+                if (screen == "eqn" && expression != "") {
+                    press-key("AC");
+                } else if (screen != "eqn") {
+                    clear-all();
+                }
+                return true;
+            }
+            return id == "CALC" || id == "UP" || id == "DOWN";
+        }
+        if (screen == "eqn-res") {
+            if (id == "DOWN" && eqn-k < eqn-n - 1) {
+                eqn-k += 1;
+                eqn-show();
+            } else if (id == "UP" && eqn-k > 0) {
+                eqn-k -= 1;
+                eqn-show();
+            } else if (id == "EQ" && s && alt-text != "") {
+                alt-shown = !alt-shown;
+            } else if (id == "AC" || id == "EQ") {
+                eqn-i = 0;
+                screen = "eqn";
+                eqn-prompt();
+            }
+            return true;
+        }
+        if (mode == "EQN" && screen == "edit") {
+            return true;
+        }
+        if (screen == "ans-view" && (id == "UP" || id == "DOWN" || id == "LEFT" || id == "RIGHT")) {
+            let count = ans-m * ans-n;
+            el = Math.mod(el + (id == "DOWN" || id == "RIGHT" ? 1 : count - 1), count);
+            ans-show();
+            return true;
+        }
+        return false;
+    }
+
+    // ALPHA: variables, "=", ":" and e.
+    function alpha-key(id: string) {
+        let v = var-of(id);
+        if (v != "") {
+            ins(v);
+        } else if (id == "CALC") {
+            ins("=");
+        } else if (id == "INT") {
+            ins(":");
+        } else if (id == "LN") {
+            ins("e");
+        }
+    }
+
+    // BASE: DEC HEX BIN OCT, the hex digits A–F and LOGIC.
+    function base-key(id: string) -> bool {
+        if (id == "SQ" || id == "POW" || id == "LOG" || id == "LN") {
+            set-base(id == "SQ" ? "dec" : id == "POW" ? "hex" : id == "LOG" ? "bin" : "oct");
+            return true;
+        }
+        let hex = id == "NEG" ? "A" : id == "DMS" ? "B" : id == "HYP" ? "C" : id == "SIN" ? "D" : id == "COS" ? "E" : id == "TAN" ? "F" : "";
+        if (hex != "") {
+            ins(hex);
+            return true;
+        }
+        if (id == "INV") {
+            open-menu("logic");
+            return true;
+        }
+        return false;
+    }
+
+    // 0–9, and with SHIFT: Rnd, the mode menus or the engineering symbols.
+    function digit-key(id: string, s: bool) {
+        if (!s) {
+            ins(id);
+        } else if (id == "0") {
+            ins("round(");
+        } else if (id == "1" && stats) {
+            open-menu("ssum");
+        } else if (id == "2" && stats) {
+            open-menu("svar");
+        } else if (id == "3" && mode == "SD") {
+            open-menu("distr");
+        } else if (id == "4" && mode == "MAT") {
+            open-menu("mat");
+        } else if (id == "5" && mode == "VCT") {
+            open-menu("vct");
+        } else if (eng-on) {
+            // Engineering symbols (EngON): 7 M, 8 G, 9 T, 4 μ, 5 m, 6 k, 1 f, 2 p, 3 n.
+            ins(id == "7" ? "E6" : id == "8" ? "E9" : id == "9" ? "E12" : id == "4" ? "E-6" : id == "5" ? "E-3" : id == "6" ? "E3" : id == "1" ? "E-15" : id == "2" ? "E-12" : "E-9");
+        }
+    }
+
+    // The bottom keys: . + − × ÷ ×10ˣ Ans =
+    function operator-key(id: string, s: bool) -> bool {
+        if (id == "DOT") {
+            ins(s ? "Ran#" : ".");
+        } else if (id == "PLUS" || id == "MINUS") {
+            let plus = id == "PLUS";
+            if (!s) {
+                minus-after-colon(id);
+                ins(plus ? "+" : "−");
+            } else if (mode == "CMPLX") {
+                // ▸r∠θ / ▸a+bi: the next result (or this one) in that form.
+                form-pending = plus ? "polar" : "rect";
+                if (screen == "result") {
+                    set-setting("complex-form", plus ? "polar" : "rect");
+                    set-result(expression);
+                }
+            } else {
+                pol-pending = true;
+                ins(plus ? "Pol(" : "Rec(");
+            }
+        } else if (id == "MUL") {
+            ins(!s ? "×" : mode == "VCT" ? "cross(" : "nPr");
+        } else if (id == "DIV") {
+            ins(s ? "nCr" : "÷");
+        } else if (id == "EXP") {
+            ins(s ? "π" : screen == "edit" && expression-before-cursor != "" ? "E" : "1E");
+        } else if (id == "ANS") {
+            if (s) {
+                open-menu("drg");
+            } else {
+                ins("Ans");
+            }
+        } else if (id == "EQ") {
+            if (!s) {
+                equals();
+            } else if (mode == "CMPLX" || mode == "EQN") {
+                if (screen == "result" && alt-text != "") {
+                    alt-shown = !alt-shown;
+                }
+            } else {
+                // SHIFT %: the percentage is worked out at once.
+                ins("%");
+                equals();
             }
         } else {
-            root.press-key(base);
+            return false;
+        }
+        return true;
+    }
+
+    // The function keys between the replay pad and the number keys.
+    function function-key(id: string, s: bool, h: bool) -> bool {
+        if (id == "CALC") {
+            if (s) {
+                start-solve();
+            } else {
+                start-calc();
+            }
+        } else if (id == "INT") {
+            ins(s ? "d/dx(" : "∫(");
+        } else if (id == "INV") {
+            ins(s ? "!" : "^(−1)");
+        } else if (id == "CONST") {
+            open-menu(s ? "conv" : "const");
+        } else if (id == "FRAC") {
+            fraction-key(s);
+        } else if (id == "SQRT") {
+            ins(s ? "∛" : "√");
+        } else if (id == "SQ") {
+            ins(s ? "^3" : "^2");
+        } else if (id == "POW") {
+            ins(s ? "ˣ√" : "^");
+        } else if (id == "LOG") {
+            ins(s ? "10^" : "log ");
+        } else if (id == "LN") {
+            ins(s ? "e^" : "ln ");
+        } else if (id == "NEG") {
+            if (s) {
+                ins("∠");
+            } else {
+                if (screen != "edit" && !prompt-screen) {
+                    clear-all();
+                }
+                press-key("−");
+            }
+        } else if (id == "DMS") {
+            if (screen == "result") {
+                show-ans-with("dms", main-text.is-float() && !s ? "on" : "off", "off");
+            } else if (!s) {
+                ins(dms-count == 0 ? "°" : dms-count == 1 ? "′" : "″");
+                dms-count += 1;
+            }
+        } else if (id == "SIN" || id == "COS" || id == "TAN") {
+            ins((id == "SIN" ? "sin" : id == "COS" ? "cos" : "tan") + (h ? "h" : "") + (s ? "⁻¹" : "") + " ");
+        } else if (id == "RCL") {
+            sto = s;
+            rcl = !s;
+        } else if (id == "ENG") {
+            eng-key(s);
+        } else if (id == "LP") {
+            ins(s && mode == "CMPLX" ? "arg(" : "(");
+        } else if (id == "RP") {
+            ins(s ? (mode == "VCT" ? "norm(" : "abs(") : ")");
+        } else if (id == "COMMA") {
+            if (s && mode == "CMPLX") {
+                ins("conj(");
+            } else if (s && stats) {
+                ins(";");
+            } else if (!s) {
+                ins(",");
+            }
+        } else if (id == "MPLUS") {
+            if (stats) {
+                if (s) {
+                    data-undo();
+                } else {
+                    data-in();
+                }
+            } else {
+                memory(!s);
+            }
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    // ab/c while typing; on a result: fraction ↔ decimal, SHIFT d/c mixed ↔ improper.
+    function fraction-key(s: bool) {
+        if (screen == "result") {
+            if (s) {
+                improper = !improper;
+            }
+            if (!main-text.is-float() && !s) {
+                show-ans-with("fractions", "off", "off");
+            } else {
+                set-setting("fractions", "on");
+                set-result(evaluate("Ans"));
+                set-setting("fractions", "off");
+            }
+        } else if (!s) {
+            frac-used = true;
+            ins("÷");
         }
     }
 
-    // -------------------------------------------------------------
-    // CHASSIS BASE (Vector Hardware Graphics With Socket Cutouts)
-    // -------------------------------------------------------------
-    Image {
-        source: @image-url("assets/casio-chassis-wells.png");
-        width: 100%;
-        height: 100%;
-    }
-
-    // Top bezel draggable area for moving the frameless window
-    WindowMoveArea {
-        x: 0px;
-        y: 0px;
-        width: 290px;
-        height: 120px;
-    }
-
-    // Top Right Controls (Themes & Close)
-    HorizontalLayout {
-        x: 296px;
-        y: 12px;
-        spacing: 5px;
-
-        // Themes Switcher
-        Rectangle {
-            width: 62px;
-            height: 20px;
-            border-radius: 4px;
-            background: #101622CC;
-            border-width: 1px;
-            border-color: #38466080;
-
-            Text {
-                text: "Themes ▾";
-                font-size: 8px;
-                font-weight: 700;
-                color: #88C0D0;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-
-            TouchArea {
-                mouse-cursor: pointer;
-                clicked => { root.open-skin-dialog(); }
-            }
-        }
-
-        // Close / Hide Window button
-        Rectangle {
-            width: 20px;
-            height: 20px;
-            border-radius: 4px;
-            background: #101622CC;
-            border-width: 1px;
-            border-color: #38466080;
-
-            Text {
-                text: "✕";
-                font-size: 9px;
-                font-weight: 700;
-                color: #E06C75;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-
-            TouchArea {
-                mouse-cursor: pointer;
-                clicked => { root.close-window(); }
-            }
+    // ENG: i in CMPLX mode; on a result, engineering notation. Each ENG
+    // moves the decimal point 3 places right, each SHIFT ← 3 places left.
+    function eng-key(s: bool) {
+        if (mode == "CMPLX" && !s) {
+            ins("i");
+        } else if (screen == "result" && mode != "BASE") {
+            eng-step(s);
         }
     }
 
-    // -------------------------------------------------------------
-    // LIVE TWO-LINE S-V.P.A.M. LCD DISPLAY PANEL
-    // -------------------------------------------------------------
-    Rectangle {
-        x: 39px;
-        y: 128px;
-        width: 312px;
-        height: 96px;
-        clip: true;
+    function eng-step(left: bool) {
+        if (!eng-shown) {
+            let saved = setting-notation;
+            set-setting("notation", "eng");
+            let k = split-exponent(evaluate("Ans"))[1];
+            set-setting("notation", saved);
+            eng-exp = (k == "" ? 0 : k.to-float()) + (left ? 3 : 0);
+            eng-shown = true;
+        } else {
+            eng-exp += left ? 3 : -3;
+        }
+        main-text = evaluate("Ans÷10^(" + eng-exp + ")") + "E" + eng-exp;
+    }
 
-        VerticalLayout {
-            visible: root.is-powered-on;
-            padding-left: 8px;
-            padding-right: 8px;
-            padding-top: 4px;
-            padding-bottom: 4px;
-            spacing: 1px;
-
-            // Annunciator Status Header Bar
-            HorizontalLayout {
-                height: 15px;
-                alignment: space-between;
-
-                HorizontalLayout {
-                    spacing: 8px;
-
-                    // Physical Casio [ S ] (Shift) Indicator
-                    Text {
-                        text: "S";
-                        font-size: 10px;
-                        font-weight: 900;
-                        color: root.shift-active ? #121E10 : #121E1018;
+    // DEL, AC, the replay pad.
+    function cursor-key(id: string, s: bool) {
+        if (id == "DEL") {
+            // "sin ", "log ": the space goes with its function name.
+            let before = characters(expression-before-cursor);
+            if (screen == "edit" && before.length > 1 && before[before.length - 1] == " ") {
+                press-key("BACKSPACE");
+            }
+            if (screen == "edit" || prompt-screen) {
+                press-key("BACKSPACE");
+            }
+        } else if (id == "AC") {
+            clear-all();
+        } else if (id == "LEFT" || id == "RIGHT") {
+            // On a result: back into the expression, cursor at the end (◀) or start (▶).
+            if (screen == "result" || screen == "replay") {
+                let e = screen == "result" ? last-expr : expression;
+                if (e != "") {
+                    load(e);
+                    if (id == "RIGHT") {
+                        press-key("HOME");
                     }
-
-                    // Physical Casio [ A ] (Alpha) Indicator
-                    Text {
-                        text: "A";
-                        font-size: 10px;
-                        font-weight: 900;
-                        color: root.alpha-active ? #121E10 : #121E1018;
-                    }
-
-                    // Angle Unit Annunciator (DEG / RAD)
-                    Text {
-                        text: root.use-radians ? "RAD" : "DEG";
-                        font-size: 10px;
-                        font-weight: 900;
-                        color: #121E10;
-                    }
-
-                    // Math Indicator
-                    Text {
-                        text: "Math";
-                        font-size: 9px;
-                        font-weight: 700;
-                        color: #121E10;
-                    }
                 }
-
-                TouchArea {
-                    width: 36px;
-                    height: 15px;
-                    mouse-cursor: pointer;
-                    clicked => { root.toggle-angle-unit(); }
-                }
+            } else if (screen == "edit" || prompt-screen) {
+                press-key(id);
             }
-
-            // Top Line: Expression View
-            Rectangle {
-                height: 28px;
-                clip: true;
-
-                Text {
-                    x: self.preferred-width > parent.width ? (parent.width - self.preferred-width) : 0px;
-                    y: (parent.height - self.preferred-height) / 2;
-                    text: root.expression == "" ? "0" : root.expression;
-                    font-size: 19px;
-                    font-weight: 600;
-                    color: #121E10;
-                    horizontal-alignment: left;
-                    vertical-alignment: center;
-                }
-            }
-
-            // Bottom Line: High-Precision Evaluation Result
-            Rectangle {
-                height: 42px;
-                clip: true;
-
-                Text {
-                    width: parent.width;
-                    height: parent.height;
-                    text: root.is-error ? "Math ERROR" : (root.preview-result != "" ? root.preview-result : (root.expression == "" ? "0." : root.expression));
-                    font-size: (root.preview-result != "" ? root.preview-result.character-count : root.expression.character-count) > 12 ? 22px : 32px;
-                    font-weight: 900;
-                    color: root.is-error ? #801818 : #0C160A;
-                    horizontal-alignment: right;
-                    vertical-alignment: bottom;
-                }
-            }
+        } else if (id == "UP" && s) {
+            replay-copy();
+        } else if (id == "UP" || id == "DOWN") {
+            replay(id == "UP");
         }
     }
 
-    // -------------------------------------------------------------
-    // TOP ROW CONTROL SPRITES (SHIFT, ALPHA, MODE, ON) - Capsule Shape (r=11)
-    // -------------------------------------------------------------
-    CasioSpriteButton {
-        x: 35px; y: 285px; width: 37px; height: 24px; btn-radius: 11px;
-        sprite: @image-url("assets/sprites/btn_shift.png");
-        clicked => {
-            if (root.is-powered-on) {
-                root.shift-active = !root.shift-active;
-                if (root.shift-active) {
-                    root.alpha-active = false;
-                }
-            }
+    // SHIFT COPY: the expression shown by replay and every later one,
+    // joined into one multi-statement (up to ten).
+    function replay-copy() {
+        let n = history.length;
+        if (n == 0) {
+            return;
         }
-    }
-    CasioSpriteButton {
-        x: 86px; y: 290px; width: 37px; height: 24px; btn-radius: 11px;
-        sprite: @image-url("assets/sprites/btn_alpha.png");
-        clicked => {
-            if (root.is-powered-on) {
-                root.alpha-active = !root.alpha-active;
-                if (root.alpha-active) {
-                    root.shift-active = false;
-                }
-            }
-        }
-    }
-    CasioSpriteButton {
-        x: 271px; y: 290px; width: 37px; height: 24px; btn-radius: 11px;
-        sprite: @image-url("assets/sprites/btn_mode.png");
-        clicked => {
-            if (root.is-powered-on) {
-                root.shift-active = false;
-                root.alpha-active = false;
-                root.toggle-angle-unit();
-            }
-        }
-    }
-    CasioSpriteButton {
-        x: 322px; y: 285px; width: 37px; height: 24px; btn-radius: 11px;
-        sprite: @image-url("assets/sprites/btn_on.png");
-        clicked => {
-            root.is-powered-on = true;
-            root.shift-active = false;
-            root.alpha-active = false;
-            root.press-key("AC");
-        }
+        let f = min(max(hist-idx, 0), min(n - 1, 9));
+        load(history[n - 1 - f].expression + (f >= 1 ? ":" + history[n - f].expression : "") + (f >= 2 ? ":" + history[n + 1 - f].expression : "") + (f >= 3 ? ":" + history[n + 2 - f].expression : "") + (f >= 4 ? ":" + history[n + 3 - f].expression : "") + (f >= 5 ? ":" + history[n + 4 - f].expression : "") + (f >= 6 ? ":" + history[n + 5 - f].expression : "") + (f >= 7 ? ":" + history[n + 6 - f].expression : "") + (f >= 8 ? ":" + history[n + 7 - f].expression : "") + (f >= 9 ? ":" + history[n + 8 - f].expression : ""));
+        hist-idx = -1;
     }
 
-    // -------------------------------------------------------------
-    // 4-WAY CIRCULAR REPLAY DISC SPRITE
-    // -------------------------------------------------------------
-    replay_disc := Rectangle {
-        x: 145px;
-        y: 273px;
-        width: 106px;
-        height: 89px;
-        border-radius: 44px;
-
-        Image {
-            x: 0px;
-            y: (touch_up.pressed || touch_down.pressed || touch_left.pressed || touch_right.pressed) ? 2px : 0px;
-            width: 100%;
-            height: 100%;
-            source: @image-url("assets/sprites/btn_replay.png");
-            animate y { duration: 60ms; }
+    // ▲ ▼: step through earlier calculations.
+    function replay(older: bool) {
+        let n = history.length;
+        if (n == 0) {
+            return;
         }
-
-        // Up arrow quadrant
-        Rectangle {
-            x: 35px; y: 4px; width: 36px; height: 24px;
-            border-radius: 12px;
-            background: touch_up.pressed ? #00000035 : (touch_up.has-hover ? #FFFFFF25 : transparent);
-            animate background { duration: 50ms; }
-
-            touch_up := TouchArea {
-                mouse-cursor: pointer;
-                clicked => { root.press-casio("()", "()", "()"); }
-            }
+        let start = hist-idx < 0 && screen == "result" && history[n - 1].expression == last-expr ? 0 : hist-idx;
+        let next = older ? min(start + 1, n - 1) : start - 1;
+        if (next < 0) {
+            return;
         }
+        hist-idx = next;
+        last-expr = history[n - 1 - next].expression;
+        select-history-item(last-expr);
+        screen = "replay";
+        main-text = history[n - 1 - next].result;
+        alt-text = "";
+    }
 
-        // Down arrow quadrant
-        Rectangle {
-            x: 35px; y: 60px; width: 36px; height: 24px;
-            border-radius: 12px;
-            background: touch_down.pressed ? #00000035 : (touch_down.has-hover ? #FFFFFF25 : transparent);
-            animate background { duration: 50ms; }
+    // ── Keyboard ──
 
-            touch_down := TouchArea {
-                mouse-cursor: pointer;
-                clicked => { root.press-casio("()", "()", "()"); }
+    forward-focus: keys;
+    keys := FocusScope {
+        key-pressed(event) => {
+            let t = event.text;
+            if (t == "0" || t == "1" || t == "2" || t == "3" || t == "4" || t == "5" || t == "6" || t == "7" || t == "8" || t == "9") {
+                root.key(t);
+            } else if (t == ".") { root.key("DOT");
+            } else if (t == "+") { root.key("PLUS");
+            } else if (t == "-") { root.key("MINUS");
+            } else if (t == "*") { root.key("MUL");
+            } else if (t == "/") { root.key("DIV");
+            } else if (t == "^") { root.key("POW");
+            } else if (t == "(") { root.key("LP");
+            } else if (t == ")") { root.key("RP");
+            } else if (t == ",") { root.key("COMMA");
+            } else if (t == "!") { root.key("SHIFT"); root.key("INV");
+            } else if (t == "%") { root.key("SHIFT"); root.key("EQ");
+            } else if (t == "s") { root.key("SIN");
+            } else if (t == "c") { root.key("COS");
+            } else if (t == "t") { root.key("TAN");
+            } else if (t == "l") { root.key("LOG");
+            } else if (t == "n") { root.key("LN");
+            } else if (t == "r") { root.key("SQRT");
+            } else if (t == "q") { root.key("SQ");
+            } else if (t == "e") { root.key("EXP");
+            } else if (t == "a") { root.key("ANS");
+            } else if (t == "x") { root.key("ALPHA"); root.key("RP");
+            } else if (t == "S") { root.key("SHIFT");
+            } else if (t == "A") { root.key("ALPHA");
+            } else if (t == "m") { root.key("MODE");
+            } else if (t == "C") { root.key("CALC");
+            } else if (t == "i") { root.key("INT");
+            } else if (t == "v") { root.key("INV");
+            } else if (t == "k") { root.key("CONST");
+            } else if (t == "f") { root.key("FRAC");
+            } else if (t == "~") { root.key("NEG");
+            } else if (t == "d") { root.key("DMS");
+            } else if (t == "h") { root.key("HYP");
+            } else if (t == "R") { root.key("RCL");
+            } else if (t == "E") { root.key("ENG");
+            } else if (t == "p") { root.key("MPLUS");
+            } else if (t == "o") { root.key("ON");
+            } else if (t == "=" || t == Key.Return) { root.key("EQ");
+            } else if (t == Key.Backspace || t == Key.Delete) { root.key("DEL");
+            } else if (t == Key.Escape) { root.key("AC");
+            } else if (t == Key.LeftArrow) { root.key("LEFT");
+            } else if (t == Key.RightArrow) { root.key("RIGHT");
+            } else if (t == Key.UpArrow) { root.key("UP");
+            } else if (t == Key.DownArrow) { root.key("DOWN");
+            } else if (t == Key.F2) { root.open-skin-dialog();
+            } else {
+                return reject;
             }
-        }
-
-        // Left arrow quadrant
-        Rectangle {
-            x: 4px; y: 32px; width: 26px; height: 26px;
-            border-radius: 12px;
-            background: touch_left.pressed ? #00000035 : (touch_left.has-hover ? #FFFFFF25 : transparent);
-            animate background { duration: 50ms; }
-
-            touch_left := TouchArea {
-                mouse-cursor: pointer;
-                clicked => { root.press-casio("BACKSPACE", "BACKSPACE", "BACKSPACE"); }
-            }
-        }
-
-        // Right arrow quadrant
-        Rectangle {
-            x: 76px; y: 32px; width: 26px; height: 26px;
-            border-radius: 12px;
-            background: touch_right.pressed ? #00000035 : (touch_right.has-hover ? #FFFFFF25 : transparent);
-            animate background { duration: 50ms; }
-
-            touch_right := TouchArea {
-                mouse-cursor: pointer;
-                clicked => { root.press-casio("=", "=", "="); }
-            }
+            return accept;
         }
     }
 
-    // -------------------------------------------------------------
-    // SCIENTIFIC FUNCTION SPRITES (4 Rows of 6 Keys, Wedge Shape, r=4, h=24)
-    // -------------------------------------------------------------
-    // Sci Row 0: CALC, d/dx, x⁻¹, CONST
-    CasioSpriteButton { x: 38px; y: 345px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_calc.png"); clicked => { root.press-casio("=", "=", "="); } }
-    CasioSpriteButton { x: 94px; y: 345px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_ddx.png"); clicked => { root.press-casio("÷", "÷", ":"); } }
-    CasioSpriteButton { x: 261px; y: 345px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_xinv.png"); clicked => { root.press-casio("1/", "!", "!"); } }
-    CasioSpriteButton { x: 317px; y: 345px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_const.png"); clicked => { root.press-casio("π", "e", "e"); } }
+    // ── Drawing ──
 
-    // Sci Row 1: ab/c, √, x², ^, log, ln
-    CasioSpriteButton { x: 38px; y: 392px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_frac.png"); clicked => { root.press-casio("÷", "÷", "÷"); } }
-    CasioSpriteButton { x: 94px; y: 392px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_sqrt.png"); clicked => { root.press-casio("sqrt(", "^(1/3)", "sqrt("); } }
-    CasioSpriteButton { x: 149px; y: 392px; width: 42px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_xsq.png"); clicked => { root.press-casio("^2", "^3", "^2"); } }
-    CasioSpriteButton { x: 205px; y: 392px; width: 42px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_pow.png"); clicked => { root.press-casio("^", "^(1/", "^"); } }
-    CasioSpriteButton { x: 261px; y: 392px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_log.png"); clicked => { root.press-casio("log(", "10^(", "log("); } }
-    CasioSpriteButton { x: 317px; y: 392px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_ln.png"); clicked => { root.press-casio("ln(", "e^(", "e"); } }
-
-    // Sci Row 2: (-), °'", hyp, sin, cos, tan
-    CasioSpriteButton { x: 38px; y: 440px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_neg.png"); clicked => { root.press-casio("−", "A", "A"); } }
-    CasioSpriteButton { x: 94px; y: 440px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_deg.png"); clicked => { root.press-casio("π", "B", "B"); } }
-    CasioSpriteButton { x: 149px; y: 440px; width: 42px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_hyp.png"); clicked => { root.press-casio("hyp", "C", "C"); } }
-    CasioSpriteButton { x: 205px; y: 440px; width: 42px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_sin.png"); clicked => { root.press-casio("sin(", "sin⁻¹(", "D"); } }
-    CasioSpriteButton { x: 261px; y: 440px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_cos.png"); clicked => { root.press-casio("cos(", "cos⁻¹(", "E"); } }
-    CasioSpriteButton { x: 317px; y: 440px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_tan.png"); clicked => { root.press-casio("tan(", "tan⁻¹(", "F"); } }
-
-    // Sci Row 3: RCL, ENG, (, ), ,, M+
-    CasioSpriteButton { x: 38px; y: 488px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_rcl.png"); clicked => { root.press-casio("AC", "AC", "AC"); } }
-    CasioSpriteButton { x: 94px; y: 488px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_eng.png"); clicked => { root.press-casio("%", "%", "%"); } }
-    CasioSpriteButton { x: 149px; y: 488px; width: 42px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_lparen.png"); clicked => { root.press-casio("(", "(", "("); } }
-    CasioSpriteButton { x: 205px; y: 488px; width: 42px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_rparen.png"); clicked => { root.press-casio(")", ",", "X"); } }
-    CasioSpriteButton { x: 261px; y: 488px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_comma.png"); clicked => { root.press-casio(".", ";", "Y"); } }
-    CasioSpriteButton { x: 317px; y: 488px; width: 41px; height: 24px; btn-radius: 4px; sprite: @image-url("assets/sprites/btn_mplus.png"); clicked => { root.press-casio("+", "−", "M"); } }
-
-    // -------------------------------------------------------------
-    // NUMERICAL & OPERATOR SPRITES (4 Rows of 5 Keys, 3D Keycaps, r=6)
-    // -------------------------------------------------------------
-    // Num Row 0: 7, 8, 9, DEL, AC (h=34)
-    CasioSpriteButton { x: 38px; y: 543px; width: 53px; height: 34px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_num7.png"); clicked => { root.press-casio("7", "7", "7"); } }
-    CasioSpriteButton { x: 105px; y: 543px; width: 53px; height: 34px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_num8.png"); clicked => { root.press-casio("8", "8", "8"); } }
-    CasioSpriteButton { x: 171px; y: 543px; width: 54px; height: 34px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_num9.png"); clicked => { root.press-casio("9", "9", "9"); } }
-    CasioSpriteButton { x: 238px; y: 543px; width: 53px; height: 34px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_del.png"); clicked => { root.press-casio("BACKSPACE", "BACKSPACE", "BACKSPACE"); } }
-    CasioSpriteButton {
-        x: 305px; y: 543px; width: 53px; height: 34px; btn-radius: 6px;
-        sprite: @image-url("assets/sprites/btn_ac.png");
-        clicked => {
-            if (root.shift-active) {
-                // Authentic Casio Hardware OFF: Powers off the calculator display
-                root.shift-active = false;
-                root.alpha-active = false;
-                root.is-powered-on = false;
-            } else if (root.is-powered-on) {
-                root.alpha-active = false;
-                root.press-key("AC");
-            }
-        }
+    Case {
+        open-skin-dialog => { root.open-skin-dialog(); }
+        close-window => { root.close-window(); }
     }
+    Lcd {
+        x: Geo.lcd-x;
+        y: Geo.lcd-y;
+        width: Geo.lcd-w;
+        height: Geo.lcd-h;
+        powered: root.powered;
 
-    // Num Row 1: 4, 5, 6, ×, ÷ (h=35)
-    CasioSpriteButton { x: 38px; y: 600px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_num4.png"); clicked => { root.press-casio("4", "4", "4"); } }
-    CasioSpriteButton { x: 105px; y: 600px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_num5.png"); clicked => { root.press-casio("5", "5", "5"); } }
-    CasioSpriteButton { x: 171px; y: 600px; width: 54px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_num6.png"); clicked => { root.press-casio("6", "6", "6"); } }
-    CasioSpriteButton { x: 238px; y: 600px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_mul.png"); clicked => { root.press-casio("×", "×", "×"); } }
-    CasioSpriteButton { x: 305px; y: 600px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_div.png"); clicked => { root.press-casio("÷", "÷", "÷"); } }
+        editing: root.show-editor;
+        before-cursor: root.expression-before-cursor;
+        after-cursor: root.expression-after-cursor;
+        line1: root.line1;
+        line1-centered: root.screen == "error" || root.screen == "msg";
+        menu-items: root.menu != "" && root.menu-title == "" ? root.menu-items : [];
 
-    // Num Row 2: 1, 2, 3, +, − (h=35)
-    CasioSpriteButton { x: 38px; y: 658px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_num1.png"); clicked => { root.press-casio("1", "1", "1"); } }
-    CasioSpriteButton { x: 105px; y: 658px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_num2.png"); clicked => { root.press-casio("2", "2", "2"); } }
-    CasioSpriteButton { x: 171px; y: 658px; width: 54px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_num3.png"); clicked => { root.press-casio("3", "3", "3"); } }
-    CasioSpriteButton { x: 238px; y: 658px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_plus.png"); clicked => { root.press-casio("+", "+", "+"); } }
-    CasioSpriteButton { x: 305px; y: 658px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_minus.png"); clicked => { root.press-casio("−", "−", "−"); } }
+        glyphs: root.glyphs;
+        exp-glyphs: root.exp-glyphs;
+        symbol: root.eng-sym != "" && root.screen == "result" && root.main-text == root.eng-for ? root.eng-sym : "";
+        comma: root.comma;
+        disp: root.disp;
+        eng: root.eng-on;
+        hide-prefix: root.hide-prefix;
+        base-mark: root.mode != "BASE" ? "" : root.base-name == "dec" ? "d" : root.base-name == "hex" ? "H" : root.base-name == "bin" ? "b" : "o";
 
-    // Num Row 3: 0, ., EXP, Ans, = (h=35)
-    CasioSpriteButton { x: 38px; y: 716px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_num0.png"); clicked => { root.press-casio("0", "0", "0"); } }
-    CasioSpriteButton { x: 105px; y: 716px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_dot.png"); clicked => { root.press-casio(".", ".", "."); } }
-    CasioSpriteButton { x: 171px; y: 716px; width: 54px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_exp.png"); clicked => { root.press-casio("π", "π", "π"); } }
-    CasioSpriteButton { x: 238px; y: 716px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_ans.png"); clicked => { root.press-casio("=", "%", "%"); } }
-    CasioSpriteButton { x: 305px; y: 716px; width: 53px; height: 35px; btn-radius: 6px; sprite: @image-url("assets/sprites/btn_equals.png"); clicked => { root.press-casio("=", "%", "%"); } }
+        shift: root.shift;
+        alpha: root.alpha;
+        memory: root.memory-active;
+        sto: root.sto;
+        rcl: root.rcl;
+        mode: root.mode;
+        angle: root.setting-angle;
+        fix: root.fix-on;
+        sci: root.sci-on;
+        two-parts: root.alt-text != "" && root.mode != "BASE";
+        part-mark: !root.alt-shown ? "" : root.setting-complex-form == "polar" ? "∠" : "i";
+        up: root.menu == "" && root.history.length > 0 && root.hist-idx < root.history.length - 1;
+        down: root.hist-idx > 0 || (root.screen == "eqn-res" && root.eqn-k < root.eqn-n - 1);
+    }
+    Keypad {
+        width: Geo.width;
+        height: Geo.height;
+        key(id) => { root.key(id); }
+    }
 }

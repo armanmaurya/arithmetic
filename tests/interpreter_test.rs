@@ -1,5 +1,5 @@
 use arithmetic::core::editor::pop_last_token;
-use arithmetic::core::engine::{evaluate_expression, format_number};
+use arithmetic::core::engine::{Context, evaluate_expression};
 use arithmetic::core::paths::{app_config_dir, config_file_path};
 use arithmetic::skin::{compile_skin_definition, compile_skin_layout, discover_skins};
 use arithmetic::storage::{
@@ -224,22 +224,23 @@ fn test_compile_all_skin_definitions() {
 
 #[test]
 fn test_engine_calculations() {
+    let mut ctx = Context::with_seed(1);
+    let mut calc = |input: &str| {
+        let value = evaluate_expression(input, &mut ctx).unwrap();
+        ctx.format(&value)
+    };
+
     // Basic arithmetic
-    let res = evaluate_expression("7 + 8", false).unwrap();
-    assert_eq!(format_number(res), "15");
-
-    let res = evaluate_expression("12 × 4", false).unwrap();
-    assert_eq!(format_number(res), "48");
-
-    let res = evaluate_expression("100 ÷ 4", false).unwrap();
-    assert_eq!(format_number(res), "25");
+    assert_eq!(calc("7 + 8"), "15");
+    assert_eq!(calc("12 × 4"), "48");
+    assert_eq!(calc("100 ÷ 4"), "25");
+    assert_eq!(calc("ans + 1"), "26");
 
     // Trigonometry (DEG vs RAD)
-    let res_deg = evaluate_expression("sin(90)", false).unwrap();
-    assert_eq!(format_number(res_deg), "1");
-
-    let res_rad = evaluate_expression("sin(π / 2)", true).unwrap();
-    assert_eq!(format_number(res_rad), "1");
+    assert_eq!(calc("sin(90)"), "1");
+    ctx.settings.apply("angle", "rad").unwrap();
+    let value = evaluate_expression("sin(π / 2)", &mut ctx).unwrap();
+    assert_eq!(ctx.format(&value), "1");
 
     // Token popping (caret backspace)
     let mut expr = "sin(".to_string();
