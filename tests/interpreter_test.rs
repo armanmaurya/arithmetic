@@ -119,6 +119,7 @@ export component AppWindow inherits Window {
         manifest,
         directory: temp_skin_dir.clone(),
         main_file: temp_skin_dir.join("skin.slint"),
+        source: None,
     };
 
     let comp_res = compile_skin_definition(&skin_info);

@@ -42,6 +42,9 @@ export struct SkinModelEntry {
     has-thumbnail: bool,
     layouts: [SkinOptionEntry],
     color-themes: [SkinOptionEntry],
+    is-remote: bool,
+    can-remove: bool,
+    source-label: string,
 }
 
 // ---------------------------------------------------------------------------
@@ -218,15 +221,17 @@ component Swatch inherits Rectangle {
 component PillButton inherits Rectangle {
     in property <string> label;
     in property <bool> filled: true;
-    callback clicked <=> touch.clicked;
+    in property <bool> enabled: true;
+    callback clicked();
 
     height: 38px;
     border-radius: 19px;
     border-width: root.filled ? 0px : 1px;
     border-color: AppTheme.outline-variant;
+    opacity: root.enabled ? 1.0 : 0.45;
     background: root.filled
-        ? (touch.pressed ? AppTheme.primary.darker(15%) : (touch.has-hover ? AppTheme.primary.brighter(10%) : AppTheme.primary))
-        : (touch.pressed ? AppTheme.surface-container-high.darker(10%) : (touch.has-hover ? AppTheme.surface-container-high : transparent));
+        ? (touch.pressed && root.enabled ? AppTheme.primary.darker(15%) : (touch.has-hover && root.enabled ? AppTheme.primary.brighter(10%) : AppTheme.primary))
+        : (touch.pressed && root.enabled ? AppTheme.surface-container-high.darker(10%) : (touch.has-hover && root.enabled ? AppTheme.surface-container-high : transparent));
     animate background { duration: 120ms; }
 
     Text {
@@ -239,7 +244,12 @@ component PillButton inherits Rectangle {
     }
 
     touch := TouchArea {
-        mouse-cursor: pointer;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => {
+            if (root.enabled) {
+                root.clicked();
+            }
+        }
     }
 }
 
@@ -265,11 +275,17 @@ export component SkinDialog inherits Window {
     in property <image> current-preview;
     in property <bool> has-current-preview: false;
     in property <string> load-error: "";
+    in property <string> status-message: "";
+    in-out property <string> repo-input: "";
+    in-out property <bool> is-busy: false;
 
     // (skin id, layout id, colour theme id); empty ids keep what the skin last used
     callback apply-skin(string, string, string);
     callback open-skins-folder();
     callback reload-skins();
+    callback install-remote-skin(string);
+    callback update-remote-skin(string);
+    callback remove-skin(string);
     callback close-dialog();
 
     HorizontalLayout {
@@ -316,6 +332,55 @@ export component SkinDialog inherits Window {
                                 }
                             }
                         }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 36px;
+                        border-radius: 10px;
+                        border-width: 1px;
+                        border-color: repo-field.has-focus ? AppTheme.primary : AppTheme.outline-variant;
+                        background: AppTheme.surface;
+                        clip: true;
+
+                        if root.repo-input == "": Text {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            height: parent.height;
+                            text: "owner/repo or URL";
+                            font-size: 12px;
+                            color: AppTheme.outline;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        repo-field := TextInput {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            height: parent.height;
+                            text <=> root.repo-input;
+                            font-size: 12px;
+                            color: AppTheme.on-surface;
+                            vertical-alignment: center;
+                            single-line: true;
+                            enabled: !root.is-busy;
+                            accepted => {
+                                if (!root.is-busy && root.repo-input != "") {
+                                    root.install-remote-skin(root.repo-input);
+                                }
+                            }
+                        }
+                    }
+
+                    PillButton {
+                        width: 56px;
+                        height: 36px;
+                        label: root.is-busy ? "..." : "Add";
+                        enabled: !root.is-busy && root.repo-input != "";
+                        clicked => { root.install-remote-skin(root.repo-input); }
                     }
                 }
 
@@ -390,11 +455,37 @@ export component SkinDialog inherits Window {
                         font-size: 12px;
                         color: AppTheme.outline;
                     }
+                    if root.current.source-label != "": Text {
+                        text: root.current.source-label;
+                        font-size: 11px;
+                        color: AppTheme.outline;
+                        wrap: word-wrap;
+                    }
                     if root.current.description != "": Text {
                         text: root.current.description;
                         font-size: 13px;
                         color: AppTheme.on-surface-variant;
                         wrap: word-wrap;
+                    }
+                    if root.current.is-remote || root.current.can-remove: HorizontalLayout {
+                        spacing: 8px;
+                        padding-top: 4px;
+                        if root.current.is-remote: PillButton {
+                            width: 88px;
+                            height: 30px;
+                            label: root.is-busy ? "Busy..." : "Update";
+                            filled: false;
+                            enabled: !root.is-busy;
+                            clicked => { root.update-remote-skin(root.current.id); }
+                        }
+                        if root.current.can-remove: PillButton {
+                            width: 88px;
+                            height: 30px;
+                            label: "Remove";
+                            filled: false;
+                            enabled: !root.is-busy;
+                            clicked => { root.remove-skin(root.current.id); }
+                        }
                     }
 
                     Rectangle { height: 12px; }
@@ -445,6 +536,20 @@ export component SkinDialog inherits Window {
                 }
             }
 
+            if root.status-message != "" && root.load-error == "": Rectangle {
+                border-radius: 10px;
+                background: AppTheme.primary-container;
+                VerticalLayout {
+                    padding: 10px;
+                    Text {
+                        text: root.status-message;
+                        font-size: 12px;
+                        color: AppTheme.on-primary-container;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+
             if root.load-error != "": Rectangle {
                 border-radius: 10px;
                 background: AppTheme.error.with-alpha(0.14);
@@ -461,12 +566,20 @@ export component SkinDialog inherits Window {
 
             HorizontalLayout {
                 alignment: end;
+                spacing: 8px;
                 Text {
                     horizontal-stretch: 1;
                     text: "Tip: press T or F2 in the calculator to open this window";
                     font-size: 11px;
                     color: AppTheme.outline;
                     vertical-alignment: center;
+                }
+                PillButton {
+                    width: 104px;
+                    label: root.is-busy ? "Updating..." : "Update All";
+                    filled: false;
+                    enabled: !root.is-busy;
+                    clicked => { root.update-remote-skin(""); }
                 }
                 PillButton {
                     width: 100px;

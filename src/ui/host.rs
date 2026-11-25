@@ -12,7 +12,11 @@ use crate::core::engine::{
     evaluate_expression, format_value, preview_expression,
 };
 use crate::core::paths::app_config_dir;
-use crate::skin::{SkinInfo, compile_skin_layout, discover_skins};
+use crate::skin::manager::is_inside_any;
+use crate::skin::{
+    InstallResult, SkinInfo, UpdateStatus, compile_skin_layout, discover_skins,
+    install_remote_skin, remove_skin, update_remote_skins, user_skin_directories,
+};
 use crate::storage::{
     SkinPrefs, append_history_entry, clear_saved_history, load_raw_history, load_settings,
     save_settings,
@@ -21,6 +25,7 @@ use crate::{NoSkinWindow, SkinDialog, SkinModelEntry, SkinOptionEntry};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use slint_interpreter::{ComponentInstance, SetPropertyError, Struct, Value};
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::time::Duration;
 
@@ -44,12 +49,18 @@ struct ActiveSkin {
     instance: ComponentInstance,
 }
 
+enum BgTaskResult {
+    Install(Result<InstallResult, String>),
+    Update(Result<Vec<UpdateStatus>, String>),
+}
+
 pub struct App {
     state: RefCell<CalcState>,
     history: Rc<VecModel<Value>>,
     active: RefCell<Option<ActiveSkin>>,
     /// Skins found by the last scan, in the same order as the picker list.
     skins: RefCell<Vec<(SkinInfo, SkinModelEntry)>>,
+    bg_timer: RefCell<Option<slint::Timer>>,
     dialog: SkinDialog,
     no_skin: NoSkinWindow,
 }
@@ -158,7 +169,7 @@ fn plural(n: usize, one: &str, many: &str) -> String {
     format!("{n} {}", if n == 1 { one } else { many })
 }
 
-fn skin_entry(skin: &SkinInfo) -> SkinModelEntry {
+fn skin_entry(skin: &SkinInfo, user_dirs: &[PathBuf]) -> SkinModelEntry {
     let m = &skin.manifest;
     let layouts: Vec<SkinOptionEntry> = m
         .layouts
@@ -192,6 +203,15 @@ fn skin_entry(skin: &SkinInfo) -> SkinModelEntry {
         summary.push(plural(color_themes.len(), "colour", "colours"));
     }
     let thumbnail = load_image(skin.preview_path(None));
+    let can_remove = is_inside_any(&skin.directory, user_dirs);
+    let source_label = match &skin.source {
+        Some(src) if src.pinned => {
+            format!("GitHub: {} · {} (pinned)", src.repo_slug(), src.ref_name)
+        }
+        Some(src) => format!("GitHub: {} · {}", src.repo_slug(), src.short_commit()),
+        None if can_remove => "Local skin".to_string(),
+        None => String::new(),
+    };
 
     SkinModelEntry {
         id: m.id.clone().into(),
@@ -204,6 +224,9 @@ fn skin_entry(skin: &SkinInfo) -> SkinModelEntry {
         thumbnail: thumbnail.unwrap_or_default(),
         layouts: ModelRc::new(VecModel::from(layouts)),
         color_themes: ModelRc::new(VecModel::from(color_themes)),
+        is_remote: skin.source.is_some(),
+        can_remove,
+        source_label: source_label.into(),
     }
 }
 
@@ -235,6 +258,7 @@ impl App {
             history: Rc::new(VecModel::from(history)),
             active: RefCell::new(None),
             skins: RefCell::new(Vec::new()),
+            bg_timer: RefCell::new(None),
             dialog: SkinDialog::new()?,
             no_skin: NoSkinWindow::new()?,
         });
@@ -296,6 +320,27 @@ impl App {
         });
 
         let weak = Rc::downgrade(self);
+        self.dialog.on_install_remote_skin(move |repo| {
+            if let Some(app) = weak.upgrade() {
+                app.start_remote_install(repo.to_string());
+            }
+        });
+
+        let weak = Rc::downgrade(self);
+        self.dialog.on_update_remote_skin(move |target| {
+            if let Some(app) = weak.upgrade() {
+                app.start_remote_update(target.to_string());
+            }
+        });
+
+        let weak = Rc::downgrade(self);
+        self.dialog.on_remove_skin(move |target| {
+            if let Some(app) = weak.upgrade() {
+                app.remove_installed_skin(target.to_string());
+            }
+        });
+
+        let weak = Rc::downgrade(self);
         self.dialog.on_close_dialog(move || {
             if let Some(app) = weak.upgrade() {
                 let _ = app.dialog.hide();
@@ -321,10 +366,198 @@ impl App {
         });
     }
 
+    fn run_bg_task<F>(self: &Rc<Self>, status_text: String, work: F)
+    where
+        F: FnOnce() -> BgTaskResult + Send + 'static,
+    {
+        if self.dialog.get_is_busy() {
+            return;
+        }
+        self.dialog.set_is_busy(true);
+        self.dialog.set_load_error(SharedString::default());
+        self.dialog.set_status_message(status_text.into());
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(work());
+        });
+
+        let timer = slint::Timer::default();
+        let weak = Rc::downgrade(self);
+        timer.start(
+            slint::TimerMode::Repeated,
+            Duration::from_millis(50),
+            move || match rx.try_recv() {
+                Ok(result) => {
+                    if let Some(app) = weak.upgrade() {
+                        app.bg_timer.borrow_mut().take();
+                        app.dialog.set_is_busy(false);
+                        app.handle_bg_result(result);
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    if let Some(app) = weak.upgrade() {
+                        app.bg_timer.borrow_mut().take();
+                        app.dialog.set_is_busy(false);
+                        app.dialog
+                            .set_load_error("Background skin operation stopped unexpectedly".into());
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            },
+        );
+        self.bg_timer.replace(Some(timer));
+    }
+
+    fn start_remote_install(self: &Rc<Self>, repo: String) {
+        let trimmed = repo.trim().to_string();
+        if trimmed.is_empty() || self.dialog.get_is_busy() {
+            return;
+        }
+        self.run_bg_task(format!("Installing {trimmed}..."), move || {
+            BgTaskResult::Install(install_remote_skin(&trimmed, None))
+        });
+    }
+
+    fn start_remote_update(self: &Rc<Self>, target: String) {
+        if self.dialog.get_is_busy() {
+            return;
+        }
+        let label = if target.is_empty() {
+            "Checking for skin updates...".to_string()
+        } else {
+            format!("Updating {target}...")
+        };
+        self.run_bg_task(label, move || {
+            let target_opt = (!target.is_empty()).then_some(target);
+            BgTaskResult::Update(update_remote_skins(target_opt.as_deref(), false))
+        });
+    }
+
+    fn handle_bg_result(self: &Rc<Self>, result: BgTaskResult) {
+        match result {
+            BgTaskResult::Install(Ok(res)) => {
+                let short = res.commit.get(..7).unwrap_or(&res.commit);
+                let verb = if res.updated { "Updated" } else { "Installed" };
+                self.dialog.set_repo_input(SharedString::default());
+                self.dialog.set_load_error(SharedString::default());
+                self.dialog.set_status_message(
+                    format!("{verb} {} v{} ({short})", res.skin_id, res.version).into(),
+                );
+                self.refresh_skin_list();
+                self.schedule_activate(res.skin_id, String::new(), String::new());
+            }
+            BgTaskResult::Install(Err(err)) => {
+                self.dialog.set_status_message(SharedString::default());
+                self.dialog.set_load_error(err.into());
+            }
+            BgTaskResult::Update(Ok(statuses)) => {
+                self.apply_update_statuses(&statuses);
+            }
+            BgTaskResult::Update(Err(err)) => {
+                self.dialog.set_status_message(SharedString::default());
+                self.dialog.set_load_error(err.into());
+            }
+        }
+    }
+
+    fn apply_update_statuses(self: &Rc<Self>, statuses: &[UpdateStatus]) {
+        if statuses.is_empty() {
+            self.dialog
+                .set_status_message("No GitHub-installed skins to update.".into());
+            return;
+        }
+
+        let mut updated_ids = Vec::new();
+        let mut up_to_date = 0usize;
+        let mut pinned = 0usize;
+        let mut errors = Vec::new();
+
+        for s in statuses {
+            match s {
+                UpdateStatus::Updated(res) => updated_ids.push(res.skin_id.clone()),
+                UpdateStatus::UpToDate { .. } => up_to_date += 1,
+                UpdateStatus::Pinned { .. } => pinned += 1,
+                UpdateStatus::Failed { skin_id, error } => {
+                    errors.push(format!("{skin_id}: {error}"));
+                }
+            }
+        }
+
+        self.refresh_skin_list();
+
+        let current = self
+            .active
+            .borrow()
+            .as_ref()
+            .map(|a| (a.id.clone(), a.layout.clone(), a.color_theme.clone()));
+        if let Some((id, layout, color_theme)) = current
+            && updated_ids.iter().any(|u| u == &id)
+        {
+            self.schedule_activate(id, layout, color_theme);
+        }
+
+        let mut summary = Vec::new();
+        if !updated_ids.is_empty() {
+            summary.push(format!("Updated {}", updated_ids.join(", ")));
+        }
+        if up_to_date > 0 {
+            summary.push(format!("{up_to_date} up to date"));
+        }
+        if pinned > 0 {
+            summary.push(format!("{pinned} pinned"));
+        }
+        self.dialog
+            .set_status_message(summary.join(" · ").into());
+        self.dialog.set_load_error(errors.join("\n").into());
+    }
+
+    fn remove_installed_skin(self: &Rc<Self>, target: String) {
+        if self.dialog.get_is_busy() {
+            return;
+        }
+        match remove_skin(&target) {
+            Ok(removed_id) => {
+                self.dialog.set_load_error(SharedString::default());
+                self.dialog
+                    .set_status_message(format!("Removed {removed_id}").into());
+                let skins = self.refresh_skin_list();
+                let was_active = self
+                    .active
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|a| a.id == removed_id);
+                if was_active {
+                    let fallback = skins
+                        .iter()
+                        .find(|s| s.manifest.id == "material-3")
+                        .or_else(|| skins.first())
+                        .map(|s| s.manifest.id.clone());
+                    if let Some(next_id) = fallback {
+                        self.schedule_activate(next_id, String::new(), String::new());
+                    } else {
+                        if let Some(old) = self.active.borrow_mut().take() {
+                            let _ = old.instance.hide();
+                        }
+                        self.no_skin.set_load_error(SharedString::default());
+                        let _ = show_window(&self.no_skin);
+                    }
+                }
+            }
+            Err(err) => {
+                self.dialog.set_status_message(SharedString::default());
+                self.dialog.set_load_error(err.into());
+            }
+        }
+    }
+
     fn refresh_skin_list(&self) -> Vec<SkinInfo> {
         let skins = discover_skins();
-        let entries: Vec<(SkinInfo, SkinModelEntry)> =
-            skins.iter().map(|s| (s.clone(), skin_entry(s))).collect();
+        let user_dirs = user_skin_directories();
+        let entries: Vec<(SkinInfo, SkinModelEntry)> = skins
+            .iter()
+            .map(|s| (s.clone(), skin_entry(s, &user_dirs)))
+            .collect();
         let models: Vec<SkinModelEntry> = entries.iter().map(|(_, e)| e.clone()).collect();
         self.dialog
             .set_available_skins(ModelRc::new(VecModel::from(models)));

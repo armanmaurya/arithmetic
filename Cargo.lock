@@ -233,12 +233,14 @@ dependencies = [
 name = "arithmetic"
 version = "0.3.0"
 dependencies = [
+ "flate2",
  "serde",
  "serde_json",
  "slint",
  "slint-build",
  "slint-interpreter",
  "spin_on",
+ "tar",
 ]
 
 [[package]]

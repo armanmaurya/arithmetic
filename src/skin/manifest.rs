@@ -2,6 +2,42 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+pub const SOURCE_METADATA_FILE: &str = ".source.json";
+
+/// Origin metadata stored inside skins installed from a GitHub repository.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SkinSource {
+    pub owner: String,
+    pub repo: String,
+    pub url: String,
+    #[serde(rename = "ref", default = "default_ref_name")]
+    pub ref_name: String,
+    #[serde(default)]
+    pub pinned: bool,
+    pub commit: String,
+    #[serde(default)]
+    pub version: String,
+}
+
+fn default_ref_name() -> String {
+    "HEAD".to_string()
+}
+
+impl SkinSource {
+    /// Collision-proof runtime ID and folder name (`<owner>.<repo>`).
+    pub fn skin_id(&self) -> String {
+        format!("{}.{}", self.owner, self.repo)
+    }
+
+    pub fn repo_slug(&self) -> String {
+        format!("{}/{}", self.owner, self.repo)
+    }
+
+    pub fn short_commit(&self) -> &str {
+        self.commit.get(..7).unwrap_or(&self.commit)
+    }
+}
+
 /// A layout is a separate `.slint` file with its own window size.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkinLayout {
@@ -45,6 +81,9 @@ pub struct SkinManifest {
     pub default_color_theme: String,
     #[serde(default)]
     pub color_themes: Vec<SkinColorTheme>,
+    /// Minimum Arithmetic version required by this skin (e.g. `"0.3.0"`).
+    #[serde(default)]
+    pub min_arithmetic: Option<String>,
     /// Engine settings applied while this skin is active, so a skin can
     /// behave like the calculator it looks like, e.g.
     /// `{"implicit-mul-first": "on", "digits": "10"}`. Keys are listed in
@@ -66,6 +105,7 @@ pub struct SkinInfo {
     pub manifest: SkinManifest,
     pub directory: PathBuf,
     pub main_file: PathBuf,
+    pub source: Option<SkinSource>,
 }
 
 impl SkinInfo {
